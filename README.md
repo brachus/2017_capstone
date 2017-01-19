@@ -1,1 +1,6 @@
-# 2017_capstone
+# 2017_capstone Project
+
+Ian
+Kyle
+Lewis
+
