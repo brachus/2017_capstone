@@ -2,21 +2,181 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-#define SWIDTH 300
-#define SHEIGHT 200
+#define SWIDTH 320
+#define SHEIGHT 240
 
-#define MAXSPRITES 256
+#define TILESIZE 16
+
+#define TILEMAPSIZE 1024
+#define TILEMAPNTILES 32
+
 
 
 void tick_frame(int fps)
 {
 	static unsigned int prevtime;
 	static int first = 1;
+	int tmp;
 	if (!first)
-		SDL_Delay( (1000/fps) - (SDL_GetTicks() - prevtime) );
+	{
+		tmp = (1000/fps) - (SDL_GetTicks() - prevtime);
+		if (tmp>0)
+			SDL_Delay( tmp );
+	}
+		
 	else
 		first = 0;
 	prevtime = SDL_GetTicks();
+}
+
+struct main_state 
+{
+	
+	int game_md;
+	
+	/** title menu vars: **/
+	
+	/* [var to hold sound bite] */
+	SDL_Surface **ani_a; /* vars for animated menu graphcs.  ani_a would be intro, ani_b would be looping */
+	int ani_a_frame_cnt;
+	SDL_Surface **ani_b;
+	int ani_b_frame_cnt;
+	int ani_cur_frame;
+	char *options[6]; /* up to 6 string options */
+	int option_md[6]; /* corresponding mode for each option.  these will end up be some enum. */
+	
+	
+	
+	
+};
+
+enum
+{
+	MD_LOGO,
+	MD_MENU,
+	MD_OPTIONS,
+	MD_SEL_CHARS,
+	MD_DEATHMATCH,
+	
+	SBMD_PAUSED,
+	
+	SBMD_TRANS_A_OUT,
+	SBMD_TRANS_A_IN
+};
+
+enum
+{
+	DIR_LEFT,
+	DIR_RIGHT,
+	DIR_UP,
+	DIR_DOWN,
+	DIR_UPLEFT,
+	DIR_UPRIGHT,
+	DIR_DOWNLEFT,
+	DIR_DOWNRIGHT
+};
+
+enum
+{
+	CH_STAND,
+	CH_WALK,
+	CH_JUMP /* more to come */
+};
+
+
+struct actor
+{
+	int x;
+	int y;
+	int z;
+	
+	
+	int md;
+	
+	/* for each of these, in order:
+	 * 	facing left, 
+	 * 	right, 
+	 * 	up,
+	 * 	down,
+	 * 	up-left,
+	 * 	up-right,
+	 * 	down-left,
+	 * 	down-right
+	 */
+	struct sprite *gfx_stand[8]; /* we should focus on these the most for now */
+	struct sprite *gfx_walk[8];
+	struct sprite *gfx_jump[8];
+	
+	struct sprite *gfx_run[8];
+	
+	char dir; /* uses DIR_ enums */
+	char prev_dir;
+	
+	
+};
+
+
+
+struct cam
+{
+	int x; /* x,y are the 'center' of the camera. */
+	int y;
+	
+	int use_bounds;
+	
+	int bx0; /* top-left in world coordinates */
+	int by0;
+	int bx1; /* bottom-right in world coordinates */
+	int by1;
+	
+	struct actor *target; /* if not null, override x,y and focus target as center. */
+};
+
+struct tilemap
+{
+	int arr[TILEMAPSIZE][TILEMAPSIZE]; /* [row] [column]*/
+	SDL_Surface *tiles[TILEMAPNTILES];
+};
+
+void reset_actor(struct actor *in)
+{
+	int i;
+	
+	in->x=0;
+	in->y=0;
+	in->z=0;
+	in->dir=DIR_DOWN;
+	in->prev_dir=DIR_DOWN;
+	in->md=CH_STAND;
+	
+	for (i=0;i<8;i++)
+	{
+		in->gfx_stand[i] = 0;
+		in->gfx_walk[i] = 0;
+		in->gfx_jump[i] = 0;
+		in->gfx_run[i] = 0;
+	}
+	
+}
+
+void reset_cam(struct cam *in)
+{
+	in->x=0;
+	in->y=0;
+	in->use_bounds=0;
+	in->target=0;
+}
+
+void clear_tilemap(struct tilemap *in)
+{
+	int x,y;
+
+	for (x=0;x<256;x++)
+		for (y=0;y<256;y++)
+			in->arr[x][y] = 0;
+	
+	for (x=0;x<32;x++)
+		in->tiles[x] = 0;
 }
 
 struct sprite
@@ -83,18 +243,32 @@ void add_sprite_auto_shadow(
 	struct render_sprite_head *in,
 	struct sprite *sprt,
 	struct sprite *shad,
+	struct cam *incam,
 	int x,
 	int y,
 	int z  )
 {
-	int i,rx,ry,bry,sx,sy;
+	int i,rx,ry,bry,sx,sy,cx,cy;
 	
 	if (z<0)
 		return;
 	
-	rx = (SWIDTH/2) + x;
-	ry = (SHEIGHT/2) - y - z;
-	bry = (SHEIGHT/2) - y;
+	/* adjust cam */
+	if (incam->target)
+	{
+		cx = incam->target->x;
+		cy = incam->target->y;
+	}
+	else
+	{
+		cx = incam->x; /* take into account cam bounding box here ? */
+		cy = incam->y;
+	}
+	
+	
+	rx = (SWIDTH/2) + x - cx;
+	ry = (SHEIGHT/2) - y - z + cy;
+	bry = (SHEIGHT/2) - y + cy;
 	
 	/* step animation */
 	if (sprt->cnt0++ >= sprt->intrv)
@@ -128,6 +302,7 @@ void add_sprite_auto_shadow(
 	
 	if (!(in->next))
 		NEW_RENDER_SPRITE(in->next,sprt,0,rx,ry,bry)
+	
 	else
 	{	
 		struct render_sprite *tmp, *tmpprev;
@@ -142,6 +317,7 @@ void add_sprite_auto_shadow(
 			tmp = tmpprev->next;
 			j--;
 		}
+		
 		if (!tmp) /* only shadow sprites */
 		{
 			NEW_RENDER_SPRITE(
@@ -179,8 +355,8 @@ void add_sprite_auto_shadow(
 	
 	if (z>0)
 	{
-		sx = (SWIDTH/2) + x;
-		sy = (SHEIGHT/2) - y;
+		sx = (SWIDTH/2) + x - cx;
+		sy = (SHEIGHT/2) - y + cy;
 		
 		{
 			struct render_sprite *tmp;
@@ -194,11 +370,73 @@ void add_sprite_auto_shadow(
 				NEW_RENDER_SPRITE(in->next,shad,tmp,sx,sy,sy)
 			
 			(in->shad_cnt)++;
-		}
+		}	
+	}	
+}
+
+void tilemap_box_modify(struct tilemap *in, int x0, int y0, int x1, int y1, int val)
+{
+	int trow, tcol;
+	
+	for (trow=y0;trow<=y1;trow++)
+		for(tcol=x0;tcol<=x1;tcol++)
+			in->arr[trow][tcol] = val;
+	
+}
+
+
+void render_rsprite_list(SDL_Surface *surf, struct render_sprite_head *sprh, int shad_tick)
+{
+	/* render sprites from render sprite list */
+	SDL_Rect pos;
+	struct render_sprite *tmp = sprh->next;
+	
+	while (tmp)
+	{
+		pos.x = tmp->x - tmp->cx;
+		pos.y = tmp->y - tmp->cy;
 		
+		if (tmp->transp == 0 || shad_tick > 0)
+			SDL_BlitSurface(tmp->sprt,0 , surf, &pos);
+		
+		tmp = tmp->next;
 	}
-	
-	
+}
+
+void render_tilemap(SDL_Surface *surf, struct tilemap *intmap, struct cam *incam)
+{
+		int trow=0,tcol=0,camx,camy;
+		SDL_Surface *ttmp;
+		SDL_Rect pos;
+		
+		for (trow=0;trow<TILEMAPSIZE;trow++)
+			for (tcol=0;tcol<TILEMAPSIZE;tcol++)
+			{
+				if (  intmap->arr[trow][tcol] >= 0 && 
+					  intmap->arr[trow][tcol] < TILEMAPNTILES)
+					ttmp = intmap->tiles[intmap->arr[trow][tcol]];
+				else
+					ttmp = 0;
+					
+				/* adjust cam */
+				if (incam->target)
+				{
+					camx = incam->target->x;
+					camy = incam->target->y;
+				}
+				else
+				{
+					camx = incam->x; /* take into account cam bounding box here ? */
+					camy = incam->y;
+				}
+				
+				pos.y = SHEIGHT/2 + (trow*TILESIZE) + camy;
+				pos.x = SWIDTH/2 + (tcol*TILESIZE) - camx;
+				
+				if (pos.y<SHEIGHT && (pos.y+TILESIZE) >= 0 && 
+					pos.x<SWIDTH && (pos.x+TILESIZE) >= 0 && ttmp)
+					SDL_BlitSurface(ttmp,0 , surf, &pos);
+			}
 }
 
 
@@ -214,73 +452,111 @@ int main(void)
 	
 	pos0.x = pos0.y = 0;
 	
-	struct sprite apple,  shad;
+	struct sprite apple,  sprt_shad;
 	
 	struct render_sprite_head rstest;
 	
+	struct tilemap tmaptest;
+	
+	struct actor actors[64];
+	int actor_cnt = 0;
+	
+	struct cam testcam;
+	
+	reset_cam(&testcam);
+	
+	
 	clear_render_sprites(&rstest);
+	clear_tilemap(&tmaptest);
+	
+	tmaptest.tiles[0] = IMG_Load("w0_t0.png");
+	tmaptest.tiles[1] = IMG_Load("w0_t1.png");
+	tmaptest.tiles[2] = IMG_Load("w0_t2.png");
+	tmaptest.tiles[3] = IMG_Load("w0_t3.png");
+	
+	
+	tilemap_box_modify(&tmaptest, 2,0,8,0,  2);
+	tilemap_box_modify(&tmaptest, 2,1,8,1,  3);
+	tilemap_box_modify(&tmaptest, 2,2,8,8,  1);
+	tilemap_box_modify(&tmaptest, 9,5,14,8,  1);
 	
 	int i;
 	
-	enum
-	{
-		_CH_LEFT_GO,
-		_CH_LEFT_REST,
-		_CH_RIGHT_GO,
-		_CH_RIGHT_REST,
-		_CH_UP_GO,
-		_CH_UP_REST,
-		_CH_DOWN_GO,
-		_CH_DOWN_REST,
-		_CH_LEN
-	};
 	
-	struct sprite ch_dat[_CH_LEN];
+	struct sprite *ch0_sprites_walk[4];
+	struct sprite *ch0_sprites_stand[4];
 	
-	char ch_dir = 'd', ch_dir_prev = 'd', ch_cur_sprt = _CH_LEFT_REST;
 	
-	#define SPRITE_SET(a,b,c,d,e,f,g,h)  \
-		a[b].cx = c;  \
-		a[b].cy = d;  \
-		a[b].transp = e;  \
-		a[b].frame_cnt = f;  \
-		a[b].frame_cur = 0;  \
-		a[b].sprt_arr = (SDL_Surface**) malloc( sizeof (SDL_Surface*) * f );  \
-		a[b].intrv=g;  \
-		a[b].loop=h;  \
-		a[b].cnt0=0;
+	#define SPRITE_SET(a,c,d,e,f,g,h)  \
+		a = (struct sprite *) malloc(sizeof (struct sprite));  \
+		a->cx = c;  \
+		a->cy = d;  \
+		a->transp = e;  \
+		a->frame_cnt = f;  \
+		a->frame_cur = 0;  \
+		a->sprt_arr = (SDL_Surface**) malloc( sizeof (SDL_Surface*) * f );  \
+		a->intrv=g;  \
+		a->loop=h;  \
+		a->cnt0=0;
 	
-	#define SPRITE_LOAD_IMAGE(a,b,c,d)  \
-		a[b].sprt_arr[c] = IMG_Load(d);
+	#define SPRITE_LOAD_IMAGE(a,c,d)  \
+		a->sprt_arr[c] = IMG_Load(d);
 	
-	SPRITE_SET(ch_dat,_CH_LEFT_GO, 16,28, 0, 2, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_LEFT_GO,0,"l_0.png");
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_LEFT_GO,1,"l_1.png");
+	/* add test actor*/
+	actor_cnt++;
+	reset_actor(&actors[0]);
 	
-	SPRITE_SET(ch_dat,_CH_LEFT_REST, 16,28, 0, 1, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_LEFT_REST,0,"l_0.png");
+	actors[0].z=1;
 	
-	SPRITE_SET(ch_dat,_CH_RIGHT_GO, 16,28, 0, 2, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_RIGHT_GO,0,"r_0.png");
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_RIGHT_GO,1,"r_1.png");
+	testcam.target = &actors[0];
 	
-	SPRITE_SET(ch_dat,_CH_RIGHT_REST, 16,28, 0, 1, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_RIGHT_REST,0,"r_0.png");
 	
-	SPRITE_SET(ch_dat,_CH_UP_GO, 16,28, 0, 2, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_UP_GO,0,"u_0.png");
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_UP_GO,1,"u_1.png");
+	/* load sprites */
+	SPRITE_SET(ch0_sprites_walk[0], 16,28, 0, 2, 10,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[0],0,"l_0.png");
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[0],1,"l_1.png");
 	
-	SPRITE_SET(ch_dat,_CH_UP_REST, 16,28, 0, 1, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_UP_REST,0,"u_0.png");
+	SPRITE_SET(ch0_sprites_stand[0], 16,28, 0, 1, 10,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_stand[0],0,"l_0.png");
 	
-	SPRITE_SET(ch_dat,_CH_DOWN_GO, 16,28, 0, 2, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_DOWN_GO,0,"d_0.png");
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_DOWN_GO,1,"d_1.png");
+	SPRITE_SET(ch0_sprites_walk[1], 16,28, 0, 2, 10,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[1],0,"r_0.png");
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[1],1,"r_1.png");
 	
-	SPRITE_SET(ch_dat,_CH_DOWN_REST, 16,28, 0, 1, 20,1);
-	SPRITE_LOAD_IMAGE(ch_dat,_CH_DOWN_REST,0,"d_0.png");
+	SPRITE_SET(ch0_sprites_stand[1], 16,28, 0, 1, 10,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_stand[1],0,"r_0.png");
 	
+	SPRITE_SET(ch0_sprites_walk[2], 16,28, 0, 2, 10,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[2],0,"u_0.png");
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[2],1,"u_1.png");
+	
+	SPRITE_SET(ch0_sprites_stand[2], 16,28, 0, 1, 20,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_stand[2],0,"u_0.png");
+	
+	SPRITE_SET(ch0_sprites_walk[3], 16,28, 0, 2, 10,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[3],0,"d_0.png");
+	SPRITE_LOAD_IMAGE(ch0_sprites_walk[3],1,"d_1.png");
+	
+	SPRITE_SET(ch0_sprites_stand[3], 16,28, 0, 1, 20,1);
+	SPRITE_LOAD_IMAGE(ch0_sprites_stand[3],0,"d_0.png");
+	
+	/* very ugly */
+	actors[0].gfx_walk[0] = ch0_sprites_walk[0];
+	actors[0].gfx_walk[1] = ch0_sprites_walk[1];
+	actors[0].gfx_walk[2] = ch0_sprites_walk[2];
+	actors[0].gfx_walk[3] = ch0_sprites_walk[3];
+	actors[0].gfx_walk[4] = ch0_sprites_walk[0];
+	actors[0].gfx_walk[5] = ch0_sprites_walk[1];
+	actors[0].gfx_walk[6] = ch0_sprites_walk[2];
+	actors[0].gfx_walk[7] = ch0_sprites_walk[3];
+	actors[0].gfx_stand[0] = ch0_sprites_stand[0];
+	actors[0].gfx_stand[1] = ch0_sprites_stand[1];
+	actors[0].gfx_stand[2] = ch0_sprites_stand[2];
+	actors[0].gfx_stand[3] = ch0_sprites_stand[3];
+	actors[0].gfx_stand[4] = ch0_sprites_stand[0];
+	actors[0].gfx_stand[5] = ch0_sprites_stand[1];
+	actors[0].gfx_stand[6] = ch0_sprites_stand[2];
+	actors[0].gfx_stand[7] = ch0_sprites_stand[3];
 	
 	
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
@@ -291,12 +567,8 @@ int main(void)
 	
 	IMG_Init(IMG_INIT_PNG);
 	
+	/* create window and get surface : */
 	
-	
-	
-	/* create things: */
-
-
 	win = SDL_CreateWindow
 		(
 			"win",
@@ -311,35 +583,33 @@ int main(void)
 	tmpd = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT, 32, 0, 0, 0, 0);
 	
 	
-	/* load image data */
-	sprt_test = IMG_Load("apple.png");
-	sprt_shadow = IMG_Load("shad.png");
-	
 	/* create apple sprite */
 	apple.cx=7;apple.cy=10;
 	apple.transp=0;
 	apple.frame_cnt=1;
 	apple.frame_cur=0;
 	apple.sprt_arr = (SDL_Surface**) malloc( sizeof (SDL_Surface*) );
-	apple.sprt_arr[0] = sprt_test;
+	apple.sprt_arr[0] = IMG_Load("apple.png");;
 	apple.intrv=0;
 	apple.loop=0;
 	
 	/* create shadow sprite*/
-	shad.cx=8;shad.cy=2;
-	shad.transp=1;
-	shad.frame_cnt=1;
-	shad.frame_cur=0;
-	shad.sprt_arr = (SDL_Surface**) malloc( sizeof (SDL_Surface*) );
-	shad.sprt_arr[0] = sprt_shadow;
-	shad.intrv=0;
-	shad.loop=0;
+	sprt_shad.cx=8;sprt_shad.cy=2;
+	sprt_shad.transp=1;
+	sprt_shad.frame_cnt=1;
+	sprt_shad.frame_cur=0;
+	sprt_shad.sprt_arr = (SDL_Surface**) malloc( sizeof (SDL_Surface*) );
+	sprt_shad.sprt_arr[0] = IMG_Load("shad.png");;
+	sprt_shad.intrv=0;
+	sprt_shad.loop=0;
 	
 	
-	int k_w=0,k_a=0,k_s=0,k_d=0,k_zup=0,k_zdown=0;
+	int k_w=0,k_a=0,k_s=0,k_d=0;
 	
 	int tmpx,tmpy,tmpz;
 	tmpx=tmpy=tmpz=1;
+	
+	struct actor *key_wasd_cont = &(actors[0]);;
 	
 	int tick_shad = -1;
 	
@@ -358,90 +628,120 @@ int main(void)
 			case SDL_KEYDOWN:
 				switch(e.key.keysym.sym)
 				{
-				case SDLK_w:k_w=1;break;
-				case SDLK_a:k_a=1;break;
-				case SDLK_s:k_s=1;break;
-				case SDLK_d:k_d=1;break;
-				case SDLK_UP:k_zup=1;break;
-				case SDLK_DOWN:k_zdown=1;break;
+				case SDLK_UP:k_w=1;break;
+				case SDLK_LEFT:k_a=1;break;
+				case SDLK_DOWN:k_s=1;break;
+				case SDLK_RIGHT:k_d=1;break;
 				case SDLK_ESCAPE:run=0;break;
 				}
 				break;
 			case SDL_KEYUP:
 				switch(e.key.keysym.sym)
 				{
-				case SDLK_w:k_w=0;break;
-				case SDLK_a:k_a=0;break;
-				case SDLK_s:k_s=0;break;
-				case SDLK_d:k_d=0;break;
-				case SDLK_UP:k_zup=0;break;
-				case SDLK_DOWN:k_zdown=0;break;
+				case SDLK_UP:k_w=0;break;
+				case SDLK_LEFT:k_a=0;break;
+				case SDLK_DOWN:k_s=0;break;
+				case SDLK_RIGHT:k_d=0;break;
 				}
 				break;
 			}
 			
-		if (k_w){tmpy++;ch_dir='u';}
-		if (k_a){tmpx--;ch_dir='l';}
-		if (k_s){tmpy--;ch_dir='d';}
-		if (k_d){tmpx++;ch_dir='r';}
-		if (k_zdown){tmpz--;}
-		if (k_zup){tmpz++;}
-		
-		
-		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0xFF, 0xFF, 0xFF, 255 ) );
-        SDL_FillRect( main_display, 0, SDL_MapRGB( main_display->format, 0xFF, 0xFF, 0xFF ) );
-        
-        /* determine which sprite to use depending of character direction */
-        char tmp_dir_idx=_CH_LEFT_GO;
-		switch(ch_dir)
+
+		for (i=0;i < actor_cnt;i++)
 		{
-		case 'u':tmp_dir_idx=_CH_UP_GO;break;
-		case 'd':tmp_dir_idx=_CH_DOWN_GO;break;
-		case 'l':tmp_dir_idx=_CH_LEFT_GO;break;
-		case 'r':tmp_dir_idx=_CH_RIGHT_GO;break;
+			actors[i].prev_dir = actors[i].dir;
+			actors[i].md = CH_STAND;
+			
 		}
-        
+			
+			
+		if (key_wasd_cont)
+		{
+			if (k_w)
+			{
+				key_wasd_cont->md = CH_WALK;
+				key_wasd_cont->y++;
+				key_wasd_cont->dir = DIR_UP;
+			}
+			if (k_a)
+			{
+				key_wasd_cont->md = CH_WALK;
+				key_wasd_cont->x--;
+				key_wasd_cont->dir = DIR_LEFT;
+			}
+			if (k_s)
+			{
+				key_wasd_cont->y--;
+				key_wasd_cont->md = CH_WALK;
+				key_wasd_cont->dir = DIR_DOWN;
+			}
+			if (k_d)
+			{
+				key_wasd_cont->x++;
+				key_wasd_cont->md = CH_WALK;
+				key_wasd_cont->dir = DIR_RIGHT;
+			}
+		}
+		
+		
         /* fill example render sprites */
 		
 		clear_render_sprites(&rstest);
 		
-		add_sprite_auto_shadow(&rstest, &ch_dat[tmp_dir_idx], &shad, tmpx,tmpy,tmpz);
-		
-		add_sprite_auto_shadow(&rstest, &apple, &shad, -58, -50, 1);
-		add_sprite_auto_shadow(&rstest, &apple, &shad, -55, -48, 1);
-		add_sprite_auto_shadow(&rstest, &apple, &shad, -52, -43, 1);
-		add_sprite_auto_shadow(&rstest, &apple, &shad, -59, -38, 1);
-		add_sprite_auto_shadow(&rstest, &apple, &shad, -50, -33, 1);
-		{
-			struct render_sprite *tmp = rstest.next;
+		/* for each actor */
+        for (i=0;i < actor_cnt;i++)
+        {
 			
-			while (tmp)
+			struct sprite *use_sprite = 0;
+			
+			switch(actors[i].md)
 			{
-				pos.x = tmp->x - tmp->cx;
-				pos.y = tmp->y - tmp->cy;
-				
-				if (tmp->transp == 0 || tick_shad > 0)
-					SDL_BlitSurface(tmp->sprt,0 , tmpd, &pos);
-				
-				tmp = tmp->next;
+			case CH_WALK:
+				use_sprite = actors[i].gfx_walk[actors[i].dir];
+				break;
+			case CH_STAND:
+				use_sprite = actors[i].gfx_stand[actors[i].dir];
+				break;
+			case CH_JUMP:
+				use_sprite = actors[i].gfx_jump[actors[i].dir];
+				break;
 			}
+			
+			if (use_sprite)
+				add_sprite_auto_shadow(&rstest, use_sprite, &sprt_shad, &testcam, actors[i].x,actors[i].y,actors[i].z);
 		}
 		
+		/* start render process: */
+		
+		/* clear framebuffers */
+		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0xFF, 0xFF, 0xFF, 255 ) );
+        SDL_FillRect( main_display, 0, SDL_MapRGB( main_display->format, 0xFF, 0xFF, 0xFF ) );
+		
+		
+		/* render tile map */
+		render_tilemap(tmpd, &tmaptest, &testcam);
+		
+		
+		/* render sprites from render sprite list */
+		render_rsprite_list(tmpd, &rstest, tick_shad);
+		
+		
+		/* tick flicker shadow effect */
 		tick_shad *= -1;
 		
+		/* copy framebuffer to surface of window.  update window. */
 		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
 		SDL_UpdateWindowSurface(win);
+		
 		tick_frame(60);
+		
 	}
 	
 	/* terminate things: */
 	
 	SDL_FreeSurface(sprt_test);
-	
 	SDL_DestroyWindow(win);
-
 	IMG_Quit();
-
 	SDL_Quit();
 	
 	return 0;
