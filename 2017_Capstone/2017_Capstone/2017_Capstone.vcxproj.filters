@@ -15,51 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\apple.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\d_0.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\d_1.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\l_0.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\l_1.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\r_0.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\r_1.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\shad.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\u_0.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\u_1.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\w0_t0.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\w0_t1.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\w0_t2.png">
-      <Filter>Source Files</Filter>
-    </Image>
-    <Image Include="..\..\..\..\..\Downloads\2017_capstone-master\w0_t3.png">
-      <Filter>Source Files</Filter>
-    </Image>
+    <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\..\Downloads\2017_capstone-master\main.c">
+    <ClCompile Include="..\..\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

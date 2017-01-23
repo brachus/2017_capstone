@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+#include <SDL.h>
+#include <SDL_image.h>
 
 #define SWIDTH 320
 #define SHEIGHT 240
@@ -466,7 +466,7 @@ int main(void)
 		k_d=0, tick_shad = -1, run = 1;
 	
 	SDL_Event e;
-	SDL_Surface *sprt_test, *sprt_shadow, *main_display, *tmpd;
+	SDL_Surface  *sprt_shadow, *main_display, *tmpd;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
 	SDL_Rect 	pos0;
@@ -475,6 +475,9 @@ int main(void)
 	tilemap * tmaptest;
 	actor *actors, *key_wasd_cont;
 	cam testcam;
+
+	sprite *ch0_sprites_walk[4];
+	sprite *ch0_sprites_stand[4];
 	
 	pos0.x = pos0.y = 0;
 	
@@ -499,10 +502,6 @@ int main(void)
 	tilemap_box_modify(tmaptest, 2,1,8,1,  3);
 	tilemap_box_modify(tmaptest, 2,2,8,8,  1);
 	tilemap_box_modify(tmaptest, 9,5,14,8,  1);
-	
-	
-	sprite *ch0_sprites_walk[4];
-	sprite *ch0_sprites_stand[4];
 	
 	
 	#define SPRITE_SET(a,c,d,e,f,g,h)  \
@@ -755,7 +754,6 @@ int main(void)
 	
 	/* terminate things: */
 	
-	SDL_FreeSurface(sprt_test);
 	SDL_DestroyWindow(win);
 	IMG_Quit();
 	SDL_Quit();
