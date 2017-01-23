@@ -680,7 +680,6 @@ int main(void)
 			}
 			if (k_s)
 			{
-				printf("s\n");
 				key_wasd_cont->y--;
 				key_wasd_cont->md = CH_WALK;
 				key_wasd_cont->dir = DIR_DOWN;
