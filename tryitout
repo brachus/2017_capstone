@@ -1,1 +1,1 @@
-gcc -O3 -ansi -lSDL2 -lSDL2_image sdltest.c
+gcc -fstack-usage -ansi -lSDL2 -lSDL2_image main.c -o main

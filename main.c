@@ -10,46 +10,6 @@
 #define TILEMAPSIZE 1024
 #define TILEMAPNTILES 32
 
-
-
-void tick_frame(int fps)
-{
-	static unsigned int prevtime;
-	static int first = 1;
-	int tmp;
-	if (!first)
-	{
-		tmp = (1000/fps) - (SDL_GetTicks() - prevtime);
-		if (tmp>0)
-			SDL_Delay( tmp );
-	}
-		
-	else
-		first = 0;
-	prevtime = SDL_GetTicks();
-}
-
-struct main_state 
-{
-	
-	int game_md;
-	
-	/** title menu vars: **/
-	
-	/* [var to hold sound bite] */
-	SDL_Surface **ani_a; /* vars for animated menu graphcs.  ani_a would be intro, ani_b would be looping */
-	int ani_a_frame_cnt;
-	SDL_Surface **ani_b;
-	int ani_b_frame_cnt;
-	int ani_cur_frame;
-	char *options[6]; /* up to 6 string options */
-	int option_md[6]; /* corresponding mode for each option.  these will end up be some enum. */
-	
-	
-	
-	
-};
-
 enum
 {
 	MD_LOGO,
@@ -80,16 +40,68 @@ enum
 {
 	CH_STAND,
 	CH_WALK,
-	CH_JUMP /* more to come */
+	CH_JUMP
 };
 
+void tick_frame(int fps)
+{
+	static unsigned int prevtime;
+	static int first = 1;
+	int tmp;
+	if (!first)
+	{
+		tmp = (1000/fps) - (SDL_GetTicks() - prevtime);
+		if (tmp>0)
+			SDL_Delay( tmp );
+	}
+		
+	else
+		first = 0;
+	prevtime = SDL_GetTicks();
+}
 
-struct actor
+typedef struct
+{
+	
+	int game_md;
+	
+	/** title menu vars: **/
+	
+	/* [var to hold sound bite] */
+	SDL_Surface **ani_a; /* vars for animated menu graphcs.  ani_a would be intro, ani_b would be looping */
+	int ani_a_frame_cnt;
+	SDL_Surface **ani_b;
+	int ani_b_frame_cnt;
+	int ani_cur_frame;
+	char *options[6]; /* up to 6 string options */
+	int option_md[6]; /* corresponding mode for each option.  these will end up be some enum. */
+	
+} main_state;
+
+
+typedef struct
+{
+	int cx;
+	int cy;
+	
+	int transp;
+	
+	int frame_cnt;
+	int frame_cur;
+	char *fn_arr[256];
+	SDL_Surface **sprt_arr;
+	int intrv;
+	int loop;
+	int cnt0;
+	
+	int active;
+} sprite;
+
+typedef struct actor
 {
 	int x;
 	int y;
 	int z;
-	
 	
 	int md;
 	
@@ -103,21 +115,17 @@ struct actor
 	 * 	down-left,
 	 * 	down-right
 	 */
-	struct sprite *gfx_stand[8]; /* we should focus on these the most for now */
-	struct sprite *gfx_walk[8];
-	struct sprite *gfx_jump[8];
+	sprite *gfx_stand[8]; /* we should focus on these the most for now */
+	sprite *gfx_walk[8];
+	sprite *gfx_jump[8];
 	
-	struct sprite *gfx_run[8];
+	sprite *gfx_run[8];
 	
 	char dir; /* uses DIR_ enums */
 	char prev_dir;
-	
-	
-};
+} actor;
 
-
-
-struct cam
+typedef struct cam
 {
 	int x; /* x,y are the 'center' of the camera. */
 	int y;
@@ -129,16 +137,42 @@ struct cam
 	int bx1; /* bottom-right in world coordinates */
 	int by1;
 	
-	struct actor *target; /* if not null, override x,y and focus target as center. */
-};
+	actor *target; /* if not null, override x,y and focus target as center. */
+} cam;
 
-struct tilemap
+typedef struct tilemap
 {
-	int arr[TILEMAPSIZE][TILEMAPSIZE]; /* [row] [column]*/
-	SDL_Surface *tiles[TILEMAPNTILES];
-};
+	int w;
+	int h;
+	int ntiles;
+	int **arr; /* [row] [column]*/
+	SDL_Surface **tiles;
+} tilemap;
 
-void reset_actor(struct actor *in)
+
+typedef struct render_sprite
+{
+	short cx;
+	short cy;
+	int bx;
+	int by;
+	int x;
+	int y;
+	int transp; /* 0=no effect, 1|2=do shad effect */
+	SDL_Surface *sprt;
+	int active;
+	
+	struct render_sprite *next;
+} render_sprite;
+
+typedef struct render_sprite_head
+{
+	int shad_cnt;
+	int sprt_cnt;
+	render_sprite *next;
+} render_sprite_head;
+
+void reset_actor(actor *in)
 {
 	int i;
 	
@@ -159,7 +193,7 @@ void reset_actor(struct actor *in)
 	
 }
 
-void reset_cam(struct cam *in)
+void reset_cam(cam *in)
 {
 	in->x=0;
 	in->y=0;
@@ -167,9 +201,9 @@ void reset_cam(struct cam *in)
 	in->target=0;
 }
 
-void clear_tilemap(struct tilemap *in)
+void clear_tilemap(tilemap *in)
 {
-	int x,y;
+	int x, y;
 
 	for (x=0;x<256;x++)
 		for (y=0;y<256;y++)
@@ -179,51 +213,34 @@ void clear_tilemap(struct tilemap *in)
 		in->tiles[x] = 0;
 }
 
-struct sprite
+tilemap * new_tilemap()
 {
-	int cx;
-	int cy;
+	int i;
+	tilemap *n;
 	
-	int transp;
+	n = (tilemap*) malloc(sizeof(tilemap));
 	
-	int frame_cnt;
-	int frame_cur;
-	char *fn_arr[256];
-	SDL_Surface **sprt_arr;
-	int intrv;
-	int loop;
-	int cnt0;
+	n->w = TILEMAPSIZE;
+	n->h = TILEMAPSIZE;
 	
-	int active;
+	n->ntiles = TILEMAPNTILES;
+	
+	n->arr = (int**) malloc(sizeof(int *) * n->h );
+	
+	for (i=0;i<n->w;i++)
+		n->arr[i] = (int*) malloc(sizeof(int) * n->w);
+	
+	n->tiles = (SDL_Surface **) malloc(sizeof(SDL_Surface *) * n->ntiles);
+	
+	return n;
+		
 };
 
 
-struct render_sprite
-{
-	short cx;
-	short cy;
-	int bx;
-	int by;
-	int x;
-	int y;
-	int transp; /* 0=no effect, 1|2=do shad effect */
-	SDL_Surface *sprt;
-	int active;
-	
-	struct render_sprite *next;
-};
 
-struct render_sprite_head
+void clear_render_sprites(render_sprite_head *in)
 {
-	int shad_cnt;
-	int sprt_cnt;
-	struct render_sprite *next;
-};
-
-
-void clear_render_sprites(struct render_sprite_head *in)
-{
-	struct render_sprite *tmpa, *tmpb;
+	render_sprite *tmpa, *tmpb;
 	
 	tmpa = in->next;
 	
@@ -240,10 +257,10 @@ void clear_render_sprites(struct render_sprite_head *in)
 }
 
 void add_sprite_auto_shadow(
-	struct render_sprite_head *in,
-	struct sprite *sprt,
-	struct sprite *shad,
-	struct cam *incam,
+	render_sprite_head *in,
+	sprite *sprt,
+	sprite *shad,
+	cam *incam,
 	int x,
 	int y,
 	int z  )
@@ -289,7 +306,7 @@ void add_sprite_auto_shadow(
 	
 	#define NEW_RENDER_SPRITE(a,b,c,d,e,f)  \
 	{  \
-		a = (struct render_sprite*) malloc(sizeof(struct render_sprite));  \
+		a = (render_sprite*) malloc(sizeof(render_sprite));  \
 		a->transp = b->transp;  \
 		a->sprt = b->sprt_arr[b->frame_cur];  \
 		a->x = d;  \
@@ -305,7 +322,7 @@ void add_sprite_auto_shadow(
 	
 	else
 	{	
-		struct render_sprite *tmp, *tmpprev;
+		render_sprite *tmp, *tmpprev;
 		int j = in->shad_cnt;
 		
 		tmpprev=0;
@@ -359,7 +376,7 @@ void add_sprite_auto_shadow(
 		sy = (SHEIGHT/2) - y + cy;
 		
 		{
-			struct render_sprite *tmp;
+			render_sprite *tmp;
 			
 			/* bring to front of render sprite list */
 			tmp = in->next;
@@ -374,7 +391,7 @@ void add_sprite_auto_shadow(
 	}	
 }
 
-void tilemap_box_modify(struct tilemap *in, int x0, int y0, int x1, int y1, int val)
+void tilemap_box_modify(tilemap *in, int x0, int y0, int x1, int y1, int val)
 {
 	int trow, tcol;
 	
@@ -385,11 +402,11 @@ void tilemap_box_modify(struct tilemap *in, int x0, int y0, int x1, int y1, int 
 }
 
 
-void render_rsprite_list(SDL_Surface *surf, struct render_sprite_head *sprh, int shad_tick)
+void render_rsprite_list(SDL_Surface *surf, render_sprite_head *sprh, int shad_tick)
 {
 	/* render sprites from render sprite list */
 	SDL_Rect pos;
-	struct render_sprite *tmp = sprh->next;
+	render_sprite *tmp = sprh->next;
 	
 	while (tmp)
 	{
@@ -403,92 +420,93 @@ void render_rsprite_list(SDL_Surface *surf, struct render_sprite_head *sprh, int
 	}
 }
 
-void render_tilemap(SDL_Surface *surf, struct tilemap *intmap, struct cam *incam)
+void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
 {
-		int trow=0,tcol=0,camx,camy;
-		SDL_Surface *ttmp;
-		SDL_Rect pos;
-		
-		for (trow=0;trow<TILEMAPSIZE;trow++)
-			for (tcol=0;tcol<TILEMAPSIZE;tcol++)
+	int trow=0,tcol=0,camx,camy;
+	SDL_Surface *ttmp;
+	SDL_Rect pos;
+	
+	for (trow=0;trow<TILEMAPSIZE;trow++)
+		for (tcol=0;tcol<TILEMAPSIZE;tcol++)
+		{
+			if (  intmap->arr[trow][tcol] >= 0 && 
+				  intmap->arr[trow][tcol] < TILEMAPNTILES)
+				ttmp = intmap->tiles[intmap->arr[trow][tcol]];
+			else
+				ttmp = 0;
+				
+			/* adjust cam */
+			if (incam->target)
 			{
-				if (  intmap->arr[trow][tcol] >= 0 && 
-					  intmap->arr[trow][tcol] < TILEMAPNTILES)
-					ttmp = intmap->tiles[intmap->arr[trow][tcol]];
-				else
-					ttmp = 0;
-					
-				/* adjust cam */
-				if (incam->target)
-				{
-					camx = incam->target->x;
-					camy = incam->target->y;
-				}
-				else
-				{
-					camx = incam->x; /* take into account cam bounding box here ? */
-					camy = incam->y;
-				}
-				
-				pos.y = SHEIGHT/2 + (trow*TILESIZE) + camy;
-				pos.x = SWIDTH/2 + (tcol*TILESIZE) - camx;
-				
-				if (pos.y<SHEIGHT && (pos.y+TILESIZE) >= 0 && 
-					pos.x<SWIDTH && (pos.x+TILESIZE) >= 0 && ttmp)
-					SDL_BlitSurface(ttmp,0 , surf, &pos);
+				camx = incam->target->x;
+				camy = incam->target->y;
 			}
+			else
+			{
+				camx = incam->x; /* take into account cam bounding box here ? */
+				camy = incam->y;
+			}
+			
+			pos.y = SHEIGHT/2 + (trow*TILESIZE) + camy;
+			pos.x = SWIDTH/2 + (tcol*TILESIZE) - camx;
+			
+			if (pos.y<SHEIGHT && (pos.y+TILESIZE) >= 0 && 
+				pos.x<SWIDTH && (pos.x+TILESIZE) >= 0 && ttmp)
+				SDL_BlitSurface(ttmp,0 , surf, &pos);
+		}
 }
 
 
 int main(void)
 {
 	/* initialize things: */
-
+	
+	int i, actor_cnt=0,
+		k_w=0, k_a=0, k_s=0,
+		k_d=0, tick_shad = -1, run = 1;
+	
 	SDL_Event e;
 	SDL_Surface *sprt_test, *sprt_shadow, *main_display, *tmpd;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
 	SDL_Rect 	pos0;
+	sprite apple,  sprt_shad;
+	render_sprite_head rstest;
+	tilemap * tmaptest;
+	actor *actors, *key_wasd_cont;
+	cam testcam;
 	
 	pos0.x = pos0.y = 0;
 	
-	struct sprite apple,  sprt_shad;
+	tmaptest = new_tilemap();
 	
-	struct render_sprite_head rstest;
-	
-	struct tilemap tmaptest;
-	
-	struct actor actors[64];
-	int actor_cnt = 0;
-	
-	struct cam testcam;
+	actors = (actor*) malloc(sizeof(actor) * 64 );
+	key_wasd_cont = &(actors[0]);
 	
 	reset_cam(&testcam);
 	
-	
+	rstest.next = 0;
 	clear_render_sprites(&rstest);
-	clear_tilemap(&tmaptest);
-	
-	tmaptest.tiles[0] = IMG_Load("w0_t0.png");
-	tmaptest.tiles[1] = IMG_Load("w0_t1.png");
-	tmaptest.tiles[2] = IMG_Load("w0_t2.png");
-	tmaptest.tiles[3] = IMG_Load("w0_t3.png");
+	clear_tilemap(tmaptest);
 	
 	
-	tilemap_box_modify(&tmaptest, 2,0,8,0,  2);
-	tilemap_box_modify(&tmaptest, 2,1,8,1,  3);
-	tilemap_box_modify(&tmaptest, 2,2,8,8,  1);
-	tilemap_box_modify(&tmaptest, 9,5,14,8,  1);
+	tmaptest->tiles[0] = IMG_Load("w0_t0.png");
+	tmaptest->tiles[1] = IMG_Load("w0_t1.png");
+	tmaptest->tiles[2] = IMG_Load("w0_t2.png");
+	tmaptest->tiles[3] = IMG_Load("w0_t3.png");
 	
-	int i;
+	tilemap_box_modify(tmaptest, 2,0,8,0,  2);
+	tilemap_box_modify(tmaptest, 2,1,8,1,  3);
+	tilemap_box_modify(tmaptest, 2,2,8,8,  1);
+	tilemap_box_modify(tmaptest, 9,5,14,8,  1);
 	
 	
-	struct sprite *ch0_sprites_walk[4];
-	struct sprite *ch0_sprites_stand[4];
+	sprite *ch0_sprites_walk[4];
+	sprite *ch0_sprites_stand[4];
 	
 	
 	#define SPRITE_SET(a,c,d,e,f,g,h)  \
-		a = (struct sprite *) malloc(sizeof (struct sprite));  \
+		a = (sprite *) malloc(sizeof (sprite));  \
 		a->cx = c;  \
 		a->cy = d;  \
 		a->transp = e;  \
@@ -502,6 +520,7 @@ int main(void)
 	#define SPRITE_LOAD_IMAGE(a,c,d)  \
 		a->sprt_arr[c] = IMG_Load(d);
 	
+	
 	/* add test actor*/
 	actor_cnt++;
 	reset_actor(&actors[0]);
@@ -509,6 +528,7 @@ int main(void)
 	actors[0].z=1;
 	
 	testcam.target = &actors[0];
+	
 	
 	
 	/* load sprites */
@@ -604,16 +624,6 @@ int main(void)
 	sprt_shad.loop=0;
 	
 	
-	int k_w=0,k_a=0,k_s=0,k_d=0;
-	
-	int tmpx,tmpy,tmpz;
-	tmpx=tmpy=tmpz=1;
-	
-	struct actor *key_wasd_cont = &(actors[0]);;
-	
-	int tick_shad = -1;
-	
-	int run=1;
 
 	/* run things: */
 
@@ -671,6 +681,7 @@ int main(void)
 			}
 			if (k_s)
 			{
+				printf("s\n");
 				key_wasd_cont->y--;
 				key_wasd_cont->md = CH_WALK;
 				key_wasd_cont->dir = DIR_DOWN;
@@ -685,14 +696,14 @@ int main(void)
 		
 		
         /* fill example render sprites */
-		
+		printf("after wasd\n");
 		clear_render_sprites(&rstest);
+		printf("clear ok\n");
 		
 		/* for each actor */
         for (i=0;i < actor_cnt;i++)
         {
-			
-			struct sprite *use_sprite = 0;
+			sprite *use_sprite = 0;
 			
 			switch(actors[i].md)
 			{
@@ -706,9 +717,12 @@ int main(void)
 				use_sprite = actors[i].gfx_jump[actors[i].dir];
 				break;
 			}
+			printf("use_sprite assgn ok\n");
 			
 			if (use_sprite)
 				add_sprite_auto_shadow(&rstest, use_sprite, &sprt_shad, &testcam, actors[i].x,actors[i].y,actors[i].z);
+			
+			printf("add_sprite_auto_shadow %d ok\n", use_sprite);
 		}
 		
 		/* start render process: */
@@ -719,11 +733,13 @@ int main(void)
 		
 		
 		/* render tile map */
-		render_tilemap(tmpd, &tmaptest, &testcam);
+		render_tilemap(tmpd, tmaptest, &testcam);
+		printf("tilemap r ok\n");
 		
 		
 		/* render sprites from render sprite list */
 		render_rsprite_list(tmpd, &rstest, tick_shad);
+		printf("rsprite r ok\n");
 		
 		
 		/* tick flicker shadow effect */
