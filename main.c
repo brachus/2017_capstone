@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <SDL.h>
-#include <SDL_image.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #define SWIDTH 320
 #define SHEIGHT 240
@@ -692,11 +692,8 @@ int main(void)
 			}
 		}
 		
-		
         /* fill example render sprites */
-		printf("after wasd\n");
 		clear_render_sprites(&rstest);
-		printf("clear ok\n");
 		
 		/* for each actor */
         for (i=0;i < actor_cnt;i++)
@@ -715,12 +712,10 @@ int main(void)
 				use_sprite = actors[i].gfx_jump[actors[i].dir];
 				break;
 			}
-			printf("use_sprite assgn ok\n");
 			
 			if (use_sprite)
 				add_sprite_auto_shadow(&rstest, use_sprite, &sprt_shad, &testcam, actors[i].x,actors[i].y,actors[i].z);
 			
-			printf("add_sprite_auto_shadow %d ok\n", use_sprite);
 		}
 		
 		/* start render process: */
@@ -732,13 +727,9 @@ int main(void)
 		
 		/* render tile map */
 		render_tilemap(tmpd, tmaptest, &testcam);
-		printf("tilemap r ok\n");
-		
 		
 		/* render sprites from render sprite list */
 		render_rsprite_list(tmpd, &rstest, tick_shad);
-		printf("rsprite r ok\n");
-		
 		
 		/* tick flicker shadow effect */
 		tick_shad *= -1;
