@@ -1,6 +1,7 @@
-#include <stdio.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+
+#include <SDL.h>
+#include <SDL_image.h>
+#include <SDL_ttf.h>
 
 #define SWIDTH 320
 #define SHEIGHT 240
@@ -463,7 +464,8 @@ int main(void)
 	
 	int i, actor_cnt=0,
 		k_w=0, k_a=0, k_s=0,
-		k_d=0, tick_shad = -1, run = 1;
+		k_d=0, tick_shad = -1, run = 1,
+		game_mode, cntr_a, cntr_b, cntr_c;
 	
 	SDL_Event e;
 	SDL_Surface  *sprt_shadow, *main_display, *tmpd;
@@ -475,9 +477,13 @@ int main(void)
 	tilemap * tmaptest;
 	actor *actors, *key_wasd_cont;
 	cam testcam;
-
 	sprite *ch0_sprites_walk[4];
 	sprite *ch0_sprites_stand[4];
+
+	SDL_Color font_default = {255,255,255,255};
+	SDL_Surface *font_surf;
+	TTF_Font *font=0;
+	// Lora-Regular.ttf
 	
 	pos0.x = pos0.y = 0;
 	
@@ -622,7 +628,20 @@ int main(void)
 	sprt_shad.intrv=0;
 	sprt_shad.loop=0;
 	
-	
+	game_mode = MD_LOGO;
+
+	if(TTF_Init()==-1)
+	{
+		printf("TTF_Init: %s\n", TTF_GetError());
+		return 2;
+	}
+
+	font=TTF_OpenFont("Lora-Regular.ttf", 14);
+	if(!font)
+	{
+		printf("TTF_OpenFont: %s\n", TTF_GetError());
+		exit(3);
+	}
 
 	/* run things: */
 
@@ -721,8 +740,13 @@ int main(void)
 		/* start render process: */
 		
 		/* clear framebuffers */
-		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0xFF, 0xFF, 0xFF, 255 ) );
-        SDL_FillRect( main_display, 0, SDL_MapRGB( main_display->format, 0xFF, 0xFF, 0xFF ) );
+		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
+        SDL_FillRect( main_display, 0, SDL_MapRGB( main_display->format, 0x0F, 0x0F, 0xFF ) );
+
+		font_surf = TTF_RenderText_Solid(font, "testing", font_default);
+		SDL_BlitSurface(font_surf,0 , tmpd, &pos0);
+		SDL_FreeSurface(font_surf);
+		
 		
 		
 		/* render tile map */
