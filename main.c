@@ -457,6 +457,33 @@ void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
 		}
 }
 
+void render_text(SDL_Surface *dst, TTF_Font *font, char *msg, int x, int y)
+{
+	SDL_Rect tmppos;
+	SDL_Surface *font_surf;
+	SDL_Color fg = {255,255,255,255}, bg = {32,32,128,255};
+	
+	tmppos.x=x; tmppos.y=y;
+	
+	font_surf = TTF_RenderText_Solid(font, msg, bg);
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	SDL_FreeSurface(font_surf);
+	
+	tmppos.x--; tmppos.y++;
+	
+	font_surf = TTF_RenderText_Solid(font, msg, fg);
+	
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	
+	tmppos.x--;
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	
+	
+	SDL_FreeSurface(font_surf);
+}
+
+
+
 
 int main(void)
 {
@@ -483,7 +510,6 @@ int main(void)
 	SDL_Color font_default = {255,255,255,255};
 	SDL_Surface *font_surf;
 	TTF_Font *font=0;
-	// Lora-Regular.ttf
 	
 	pos0.x = pos0.y = 0;
 	
@@ -531,6 +557,8 @@ int main(void)
 	reset_actor(&actors[0]);
 	
 	actors[0].z=1;
+	actors[0].x=50;
+	actors[0].y=-50;
 	
 	testcam.target = &actors[0];
 	
@@ -636,7 +664,7 @@ int main(void)
 		return 2;
 	}
 
-	font=TTF_OpenFont("Lora-Regular.ttf", 14);
+	font=TTF_OpenFont("gohufont-11.ttf", 11);
 	if(!font)
 	{
 		printf("TTF_OpenFont: %s\n", TTF_GetError());
@@ -743,9 +771,7 @@ int main(void)
 		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
         SDL_FillRect( main_display, 0, SDL_MapRGB( main_display->format, 0x0F, 0x0F, 0xFF ) );
 
-		font_surf = TTF_RenderText_Solid(font, "testing", font_default);
-		SDL_BlitSurface(font_surf,0 , tmpd, &pos0);
-		SDL_FreeSurface(font_surf);
+		
 		
 		
 		
@@ -754,6 +780,9 @@ int main(void)
 		
 		/* render sprites from render sprite list */
 		render_rsprite_list(tmpd, &rstest, tick_shad);
+		
+		/* render text */
+		render_text(tmpd, font, "testing", 10,10);
 		
 		/* tick flicker shadow effect */
 		tick_shad *= -1;
