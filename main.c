@@ -105,6 +105,8 @@ typedef struct actor
 	int z;
 	
 	int md;
+
+	int jump;
 	
 	/* for each of these, in order:
 	 * 	facing left, 
@@ -183,6 +185,7 @@ void reset_actor(actor *in)
 	in->dir=DIR_DOWN;
 	in->prev_dir=DIR_DOWN;
 	in->md=CH_STAND;
+	in->jump=0;
 	
 	for (i=0;i<8;i++)
 	{
@@ -489,10 +492,15 @@ int main(void)
 {
 	/* initialize things: */
 	
-	int i, actor_cnt=0,
+	int i, j, k, actor_cnt=0,
 		k_w=0, k_a=0, k_s=0,
-		k_d=0, tick_shad = -1, run = 1,
+		k_d=0,k_space=0, tick_shad = -1, run = 1,
 		game_mode, cntr_a, cntr_b, cntr_c;
+
+	/* character jump table.  this holds the "arc" for jumping.
+	 * it's only half of it, and there's code below that finishes
+	 * the job. */
+	int ch_jump_ani_table[64] = {2,2,2,1,1,1,1,1,1,0,1,0,1,0,1,0,1,-999};
 	
 	SDL_Event e;
 	SDL_Surface  *sprt_shadow, *main_display, *tmpd;
@@ -523,6 +531,24 @@ int main(void)
 	rstest.next = 0;
 	clear_render_sprites(&rstest);
 	clear_tilemap(tmaptest);
+
+	/* mirror the character jump table, because i'm too lazy */
+	j=-1;
+	for (i=0;i<64;i++)
+	{
+		if (j==-1 && ch_jump_ani_table[i] == -999)
+			j=i-1;
+		if (j>=0)
+		{
+			ch_jump_ani_table[i] = ch_jump_ani_table[j--] * -1;
+			if (i+1 < 64)
+				ch_jump_ani_table[i+1] = -999;
+			if (j<0)
+				break;
+		}
+
+		printf("%d\n",ch_jump_ani_table[i]);
+	}
 	
 	
 	tmaptest->tiles[0] = IMG_Load("w0_t0.png");
@@ -688,6 +714,7 @@ int main(void)
 				case SDLK_LEFT:k_a=1;break;
 				case SDLK_DOWN:k_s=1;break;
 				case SDLK_RIGHT:k_d=1;break;
+				case SDLK_SPACE:k_space=1;break;
 				case SDLK_ESCAPE:run=0;break;
 				}
 				break;
@@ -698,6 +725,7 @@ int main(void)
 				case SDLK_LEFT:k_a=0;break;
 				case SDLK_DOWN:k_s=0;break;
 				case SDLK_RIGHT:k_d=0;break;
+				case SDLK_SPACE:k_space=0;break;
 				}
 				break;
 			}
@@ -713,6 +741,7 @@ int main(void)
 			
 		if (key_wasd_cont)
 		{
+			
 			if (k_w)
 			{
 				key_wasd_cont->md = CH_WALK;
@@ -737,6 +766,21 @@ int main(void)
 				key_wasd_cont->md = CH_WALK;
 				key_wasd_cont->dir = DIR_RIGHT;
 			}
+
+			if (k_space && key_wasd_cont->jump==0)
+				key_wasd_cont->jump=1;
+
+			if (key_wasd_cont->jump)
+			{
+				/* jump: change z depending on values in ch_jump_ani_table */
+				if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
+					key_wasd_cont->z +=
+						ch_jump_ani_table[(key_wasd_cont->jump++)-1];
+				else
+					key_wasd_cont->jump=0;
+
+			}
+			
 		}
 		
         /* fill example render sprites */
