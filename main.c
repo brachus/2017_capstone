@@ -11,6 +11,8 @@
 #define TILEMAPSIZE 1024
 #define TILEMAPNTILES 32
 
+#define FPS 60
+
 enum
 {
 	MD_LOGO,
@@ -42,6 +44,13 @@ enum
 	CH_STAND,
 	CH_WALK,
 	CH_JUMP
+};
+
+enum
+{
+	FADE_NULL,
+	FADE_IN,
+	FADE_OUT
 };
 
 void tick_frame(int fps)
@@ -460,21 +469,20 @@ void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
 		}
 }
 
-void render_text(SDL_Surface *dst, TTF_Font *font, char *msg, int x, int y)
+void render_text(SDL_Surface *dst, SDL_Color *fg, SDL_Color *bg, TTF_Font *font, char *msg, int x, int y)
 {
 	SDL_Rect tmppos;
 	SDL_Surface *font_surf;
-	SDL_Color fg = {255,255,255,255}, bg = {32,32,128,255};
 	
 	tmppos.x=x; tmppos.y=y;
 	
-	font_surf = TTF_RenderText_Solid(font, msg, bg);
+	font_surf = TTF_RenderText_Solid(font, msg, *bg);
 	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
 	SDL_FreeSurface(font_surf);
 	
 	tmppos.x--; tmppos.y++;
 	
-	font_surf = TTF_RenderText_Solid(font, msg, fg);
+	font_surf = TTF_RenderText_Solid(font, msg, *fg);
 	
 	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
 	
@@ -500,10 +508,10 @@ int main(void)
 	/* character jump table.  this holds the "arc" for jumping.
 	 * it's only half of it, and there's code below that finishes
 	 * the job. */
-	int ch_jump_ani_table[64] = {2,2,2,1,1,1,1,1,1,0,1,0,1,0,1,0,1,-999};
+	int ch_jump_ani_table[64] = {3,3,3,2,2,2,1,1,1,0,1,0,1,0,1,0,1,-999};
 	
 	SDL_Event e;
-	SDL_Surface  *sprt_shadow, *main_display, *tmpd;
+	SDL_Surface  *sprt_shadow, *main_display, *tmpd, *sprt_logo, *sprt_titlescreen;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
 	SDL_Rect 	pos0;
@@ -516,8 +524,14 @@ int main(void)
 	sprite *ch0_sprites_stand[4];
 
 	SDL_Color font_default = {255,255,255,255};
+	SDL_Color font_outline = {32,32,128,255};
 	SDL_Surface *font_surf;
 	TTF_Font *font=0;
+
+	int fader_md=0, fader_cnt=0, fade_speed=(5);
+#define SET_FADE_IN() {fader_md=1;fader_cnt=255;}
+#define SET_FADE_OUT() {fader_md=2;fader_cnt=0;}
+#define SET_FADE_OFF() {fader_md=0;fader_cnt=0;}
 	
 	pos0.x = pos0.y = 0;
 	
@@ -546,8 +560,6 @@ int main(void)
 			if (j<0)
 				break;
 		}
-
-		printf("%d\n",ch_jump_ani_table[i]);
 	}
 	
 	
@@ -560,6 +572,9 @@ int main(void)
 	tilemap_box_modify(tmaptest, 2,1,8,1,  3);
 	tilemap_box_modify(tmaptest, 2,2,8,8,  1);
 	tilemap_box_modify(tmaptest, 9,5,14,8,  1);
+
+	sprt_logo = IMG_Load("logo.png");
+	sprt_titlescreen = IMG_Load("titlescreen.png");
 	
 	
 	#define SPRITE_SET(a,c,d,e,f,g,h)  \
@@ -654,12 +669,14 @@ int main(void)
 			SDL_WINDOWPOS_UNDEFINED,
 			SDL_WINDOWPOS_UNDEFINED,
 			SWIDTH, SHEIGHT,
-			SDL_WINDOW_OPENGL
+			0
 		);
 	
 	/* get window surface; create framebuffer */
 	main_display = SDL_GetWindowSurface(win);
-	tmpd = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT, 32, 0, 0, 0, 0);
+	tmpd = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0xff);
+	SDL_SetSurfaceBlendMode(tmpd, SDL_BLENDMODE_BLEND);
+	SDL_SetSurfaceBlendMode(main_display, SDL_BLENDMODE_BLEND);
 	
 	
 	/* create apple sprite */
@@ -697,6 +714,9 @@ int main(void)
 		exit(3);
 	}
 
+	SET_FADE_IN();
+	cntr_a=cntr_b=cntr_c=0;
+
 	/* run things: */
 
 	while (run)
@@ -729,113 +749,160 @@ int main(void)
 				}
 				break;
 			}
-			
-
-		for (i=0;i < actor_cnt;i++)
+		
+		switch(game_mode)
 		{
-			actors[i].prev_dir = actors[i].dir;
-			actors[i].md = CH_STAND;
+		case MD_LOGO:
+			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
+			pos.x = (SWIDTH/2) - (sprt_logo->w / 2);
+			pos.y = (SHEIGHT/2) - (sprt_logo->h / 2);
+			SDL_BlitSurface(sprt_logo,0 , tmpd, &pos);
+
+			if (k_space)
+			{
+				SET_FADE_OFF()
+				game_mode = MD_DEATHMATCH;
+			}
 			
+			cntr_a++;
+
+			if (cntr_a == (FPS*2))
+				SET_FADE_OUT();
+
+			if (cntr_a > (FPS*2) && fader_cnt == 255)
+			{
+				SET_FADE_OFF()
+				game_mode = MD_DEATHMATCH;
+			}
+			break;
+		case MD_DEATHMATCH:
+			for (i=0;i < actor_cnt;i++)
+			{
+				actors[i].prev_dir = actors[i].dir;
+				actors[i].md = CH_STAND;
+			
+			}
+			
+			
+			if (key_wasd_cont)
+			{
+			
+				if (k_w)
+				{
+					key_wasd_cont->md = CH_WALK;
+					key_wasd_cont->y++;
+					key_wasd_cont->dir = DIR_UP;
+				}
+				if (k_a)
+				{
+					key_wasd_cont->md = CH_WALK;
+					key_wasd_cont->x--;
+					key_wasd_cont->dir = DIR_LEFT;
+				}
+				if (k_s)
+				{
+					key_wasd_cont->y--;
+					key_wasd_cont->md = CH_WALK;
+					key_wasd_cont->dir = DIR_DOWN;
+				}
+				if (k_d)
+				{
+					key_wasd_cont->x++;
+					key_wasd_cont->md = CH_WALK;
+					key_wasd_cont->dir = DIR_RIGHT;
+				}
+
+				if (k_space && key_wasd_cont->jump==0)
+					key_wasd_cont->jump=1;
+
+				if (key_wasd_cont->jump)
+				{
+					/* jump: change z depending on values in ch_jump_ani_table */
+					if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
+						key_wasd_cont->z +=
+							ch_jump_ani_table[(key_wasd_cont->jump++)-1];
+					else
+						key_wasd_cont->jump=0;
+
+				}
+			
+			}
+		
+			/* fill example render sprites */
+			clear_render_sprites(&rstest);
+		
+			/* for each actor */
+			for (i=0;i < actor_cnt;i++)
+			{
+				sprite *use_sprite = 0;
+			
+				switch(actors[i].md)
+				{
+				case CH_WALK:
+					use_sprite = actors[i].gfx_walk[actors[i].dir];
+					break;
+				case CH_STAND:
+					use_sprite = actors[i].gfx_stand[actors[i].dir];
+					break;
+				case CH_JUMP:
+					use_sprite = actors[i].gfx_jump[actors[i].dir];
+					break;
+				}
+			
+				if (use_sprite)
+					add_sprite_auto_shadow(&rstest, use_sprite, &sprt_shad, &testcam, actors[i].x,actors[i].y,actors[i].z);
+			
+			}
+		
+			/* start render process: */
+		
+			/* clear framebuffers */
+			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
+
+		
+			/* render tile map */
+			render_tilemap(tmpd, tmaptest, &testcam);
+		
+			/* render sprites from render sprite list */
+			render_rsprite_list(tmpd, &rstest, tick_shad);
+		
+			/* render text */
+			render_text(tmpd, &font_default, &font_outline, font, "testing", 10,10);
+		
+			/* tick flicker shadow effect */
+			tick_shad *= -1;
+			break;
 		}
-			
-			
-		if (key_wasd_cont)
+		
+		if (fader_md == FADE_IN)
 		{
-			
-			if (k_w)
-			{
-				key_wasd_cont->md = CH_WALK;
-				key_wasd_cont->y++;
-				key_wasd_cont->dir = DIR_UP;
-			}
-			if (k_a)
-			{
-				key_wasd_cont->md = CH_WALK;
-				key_wasd_cont->x--;
-				key_wasd_cont->dir = DIR_LEFT;
-			}
-			if (k_s)
-			{
-				key_wasd_cont->y--;
-				key_wasd_cont->md = CH_WALK;
-				key_wasd_cont->dir = DIR_DOWN;
-			}
-			if (k_d)
-			{
-				key_wasd_cont->x++;
-				key_wasd_cont->md = CH_WALK;
-				key_wasd_cont->dir = DIR_RIGHT;
-			}
+			fader_cnt-=fade_speed;
 
-			if (k_space && key_wasd_cont->jump==0)
-				key_wasd_cont->jump=1;
-
-			if (key_wasd_cont->jump)
-			{
-				/* jump: change z depending on values in ch_jump_ani_table */
-				if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
-					key_wasd_cont->z +=
-						ch_jump_ani_table[(key_wasd_cont->jump++)-1];
-				else
-					key_wasd_cont->jump=0;
-
-			}
-			
+			if (fader_cnt<=0)
+				fader_md=0;
 		}
-		
-        /* fill example render sprites */
-		clear_render_sprites(&rstest);
-		
-		/* for each actor */
-        for (i=0;i < actor_cnt;i++)
-        {
-			sprite *use_sprite = 0;
-			
-			switch(actors[i].md)
-			{
-			case CH_WALK:
-				use_sprite = actors[i].gfx_walk[actors[i].dir];
-				break;
-			case CH_STAND:
-				use_sprite = actors[i].gfx_stand[actors[i].dir];
-				break;
-			case CH_JUMP:
-				use_sprite = actors[i].gfx_jump[actors[i].dir];
-				break;
-			}
-			
-			if (use_sprite)
-				add_sprite_auto_shadow(&rstest, use_sprite, &sprt_shad, &testcam, actors[i].x,actors[i].y,actors[i].z);
-			
+		else if (fader_md == FADE_OUT)
+		{
+			fader_cnt+=fade_speed;
+
+			if (fader_cnt>=255)
+				fader_md=255;
 		}
-		
-		/* start render process: */
-		
-		/* clear framebuffers */
-		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
-        SDL_FillRect( main_display, 0, SDL_MapRGB( main_display->format, 0x0F, 0x0F, 0xFF ) );
+		else
+			fader_cnt=0;
 
 		
-		
-		
-		
-		/* render tile map */
-		render_tilemap(tmpd, tmaptest, &testcam);
-		
-		/* render sprites from render sprite list */
-		render_rsprite_list(tmpd, &rstest, tick_shad);
-		
-		/* render text */
-		render_text(tmpd, font, "testing", 10,10);
-		
-		/* tick flicker shadow effect */
-		tick_shad *= -1;
 		
 		/* copy framebuffer to surface of window.  update window. */
 		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
+
+		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, fader_cnt ) );
+
+		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
+
 		SDL_UpdateWindowSurface(win);
 		
-		tick_frame(60);
+		tick_frame(FPS);
 		
 	}
 	
