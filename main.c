@@ -113,6 +113,18 @@ typedef struct actor
 	int y;
 	int z;
 	
+	int dx;
+	int dy;
+	int dz;
+	
+	int bbox_w;
+	int bbox_h; /* bounding box width/height.
+				 * center of bbox is always x,y,z. 
+				 * (more like a plane).
+				 * 
+				 * this is used for collisions/movement clipping.
+				 */
+	
 	int md;
 
 	int jump;
@@ -195,6 +207,13 @@ void reset_actor(actor *in)
 	in->x=0;
 	in->y=0;
 	in->z=0;
+	in->dx=0;
+	in->dy=0;
+	in->dz=0;
+	
+	in->bbox_w=0;
+	in->bbox_h=0;
+	
 	in->dir=DIR_DOWN;
 	in->prev_dir=DIR_DOWN;
 	in->md=CH_STAND;
@@ -562,7 +581,31 @@ void render_hud_health_left(SDL_Surface *dst, SDL_Surface *src, float a, float b
 	
 }
 
+/* applies dxyz to xyz vars in actor, while clipping
+ * against other actors and a tilemap.
+ */
+void actor_apply_delta_doclip( actor *a, actor **all, tilemap *tm)
+{
+	a->x += a->dx;
+	a->y += a->dy;
+	a->z += a->dz;
+	
+	a->dx = a->dy = a->dz = 0;
+	
+}
 
+/* applies dxyz to xyz vars in actor, while clipping
+ * against other actors and a tilemap.
+ */
+void actor_apply_delta_noclip( actor *a)
+{
+	a->x += a->dx;
+	a->y += a->dy;
+	a->z += a->dz;
+	
+	a->dx = a->dy = a->dz = 0;
+	
+}
 
 
 int main(void)
@@ -590,6 +633,7 @@ int main(void)
 	actor *actors, *key_wasd_cont;
 	cam testcam;
 	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar;
+	float ch0_health=1.0;
 	
 	/* font stuff */
 	SDL_Color font_default = {255,255,255,255};
@@ -878,57 +922,63 @@ int main(void)
 				game_mode_first_loop=0;
 			}
 			
-			if (cntr_c > 0) cntr_c--;
+			if (cntr_c > 0)
+				cntr_c--;
 			
 			for (i=0;i < actor_cnt;i++)
 			{
 				actors[i].prev_dir = actors[i].dir;
 				actors[i].md = CH_STAND;
 			
-			}
-			
-			if (key_wasd_cont && cntr_c <= 0)
-			{
-			
-				if (k_w)
+				
+				/* processing for wasd-controlled actor */
+				if (&actors[i] == key_wasd_cont && cntr_c <= 0)
 				{
-					key_wasd_cont->md = CH_WALK;
-					key_wasd_cont->y++;
-					key_wasd_cont->dir = DIR_UP;
-				}
-				if (k_a)
-				{
-					key_wasd_cont->md = CH_WALK;
-					key_wasd_cont->x--;
-					key_wasd_cont->dir = DIR_LEFT;
-				}
-				if (k_s)
-				{
-					key_wasd_cont->y--;
-					key_wasd_cont->md = CH_WALK;
-					key_wasd_cont->dir = DIR_DOWN;
-				}
-				if (k_d)
-				{
-					key_wasd_cont->x++;
-					key_wasd_cont->md = CH_WALK;
-					key_wasd_cont->dir = DIR_RIGHT;
-				}
+					if (k_w)
+					{
+						key_wasd_cont->md = CH_WALK;
+						key_wasd_cont->dy = 1;
+						key_wasd_cont->dir = DIR_UP;
+					}
+					if (k_a)
+					{
+						key_wasd_cont->md = CH_WALK;
+						key_wasd_cont->dx = -1;
+						key_wasd_cont->dir = DIR_LEFT;
+					}
+					if (k_s)
+					{
+						key_wasd_cont->dy = -1;
+						key_wasd_cont->md = CH_WALK;
+						key_wasd_cont->dir = DIR_DOWN;
+					}
+					if (k_d)
+					{
+						key_wasd_cont->dx = 1;
+						key_wasd_cont->md = CH_WALK;
+						key_wasd_cont->dir = DIR_RIGHT;
+					}
 
-				if (k_space && key_wasd_cont->jump==0)
-					key_wasd_cont->jump=1;
+					if (k_space && key_wasd_cont->jump==0)
+						key_wasd_cont->jump=1;
 
-				if (key_wasd_cont->jump)
-				{
-					/* jump: change z depending on values in ch_jump_ani_table */
-					if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
-						key_wasd_cont->z +=
-							ch_jump_ani_table[(key_wasd_cont->jump++)-1];
-					else
-						key_wasd_cont->jump=0;
+					if (key_wasd_cont->jump)
+					{
+						/* jump: change z depending on values in ch_jump_ani_table */
+						if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
+							key_wasd_cont->z =
+								ch_jump_ani_table[(key_wasd_cont->jump++)-1];
+						else
+							key_wasd_cont->jump=0;
 
+					}
 				}
-			
+				else /* processing for other actors */
+				{
+					
+				}
+				
+				actor_apply_delta_doclip(&actors[i], &actors, tmaptest);
 			}
 		
 			/* fill example render sprites */
@@ -977,7 +1027,8 @@ int main(void)
 			/* render sprites from render sprite list */
 			render_rsprite_list(tmpd, &rstest, tick_shad);
 			
-			render_hud_health_left(tmpd, gfx_hud_health_l, 1.0, 1.0, &font_default, &font_outline, font, "Test Character");
+			render_hud_health_left(tmpd, gfx_hud_health_l, ch0_health, 1.0, &font_default, &font_outline, font, "Test Character");
+			
 		
 			/* tick flicker shadow effect */
 			tick_shad *= -1;
