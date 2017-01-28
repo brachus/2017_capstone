@@ -117,6 +117,8 @@ typedef struct actor
 
 	int jump;
 	
+	int type;
+	
 	/* for each of these, in order:
 	 * 	facing left, 
 	 * 	right, 
@@ -132,6 +134,8 @@ typedef struct actor
 	sprite *gfx_jump[8];
 	
 	sprite *gfx_run[8];
+	
+	sprite *main;
 	
 	char dir; /* uses DIR_ enums */
 	char prev_dir;
@@ -383,7 +387,7 @@ void add_sprite_auto_shadow(
 	
 	/* do shadow */
 	
-	if (z>0)
+	if (z>0 && shad)
 	{
 		sx = (SWIDTH/2) + x - cx;
 		sy = (SHEIGHT/2) - y + cy;
@@ -493,6 +497,71 @@ void render_text(SDL_Surface *dst, SDL_Color *fg, SDL_Color *bg, TTF_Font *font,
 	SDL_FreeSurface(font_surf);
 }
 
+/* both a and b range from 0 - 255 */
+void render_hud_health_left(SDL_Surface *dst, SDL_Surface *src, float a, float b, SDL_Color *fg, SDL_Color *bg, TTF_Font *font, char *msg)
+{
+	#define L_HUD_HEALTH_TOPLEFT_X 39
+	#define L_HUD_HEALTH_TOPLEFT_Y 24
+	#define L_HUD_HEALTH_TOPLEFT_LN 75
+	
+	SDL_PixelFormat *pw_fmt;
+	SDL_Rect pos0;
+	int pw_bpp, pw_pitch, tmpln, i, j;
+	uint32_t pw_ucol;
+	uint8_t *pw_pixel;
+	
+	pos0.x=pos0.y=0;
+	
+	
+	pw_fmt = dst->format;
+	pw_bpp = pw_fmt->BytesPerPixel;
+	pw_pitch = dst->pitch;
+	
+	
+	if (pw_bpp!=4)
+		return;
+		
+	SDL_BlitSurface(src,0 , dst, &pos0);
+	
+	
+	#define PW_PIXEL_SETCOL(r,g,b)  \
+		pw_ucol = SDL_MapRGB(pw_fmt, r,g,b);
+		
+	#define PW_PIXEL_SET(x,y)  \
+		{pw_pixel = (uint8_t*) dst->pixels;  \
+		pw_pixel += ((y) * pw_pitch) + ((x) * pw_bpp);  \
+		*((uint32_t*)pw_pixel) = pw_ucol;}
+	
+	PW_PIXEL_SETCOL(201,228,246);
+	
+	tmpln = a * L_HUD_HEALTH_TOPLEFT_LN;
+	
+	
+	i=L_HUD_HEALTH_TOPLEFT_X;
+	
+	
+	while (i < L_HUD_HEALTH_TOPLEFT_X + tmpln + 2)
+	{
+		j=L_HUD_HEALTH_TOPLEFT_Y;
+		if (i<L_HUD_HEALTH_TOPLEFT_X+75)
+			PW_PIXEL_SET(i, j);
+		j++;
+		if (i<L_HUD_HEALTH_TOPLEFT_X+76)
+			PW_PIXEL_SET(i, j);
+		j++;
+		PW_PIXEL_SET(i, j);
+		
+		i++;
+		
+	}
+	
+	
+	/* render text */
+	render_text(dst, fg, bg, font, msg, 50,7);
+	
+	
+}
+
 
 
 
@@ -503,7 +572,7 @@ int main(void)
 	int i, j, k, actor_cnt=0,
 		k_w=0, k_a=0, k_s=0,
 		k_d=0,k_space=0, tick_shad = -1, run = 1,
-		game_mode, cntr_a, cntr_b, cntr_c;
+		game_mode, cntr_a, cntr_b, cntr_c, game_mode_first_loop;
 
 	/* character jump table.  this holds the "arc" for jumping.
 	 * it's only half of it, and there's code below that finishes
@@ -511,7 +580,7 @@ int main(void)
 	int ch_jump_ani_table[64] = {3,3,3,2,2,2,1,1,1,0,1,0,1,0,1,0,1,-999};
 	
 	SDL_Event e;
-	SDL_Surface  *sprt_shadow, *main_display, *tmpd, *sprt_logo, *sprt_titlescreen;
+	SDL_Surface  *sprt_shadow, *main_display, *tmpd, *sprt_logo, *sprt_titlescreen, *gfx_hud_health_l;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
 	SDL_Rect 	pos0;
@@ -520,15 +589,15 @@ int main(void)
 	tilemap * tmaptest;
 	actor *actors, *key_wasd_cont;
 	cam testcam;
-	sprite *ch0_sprites_walk[4];
-	sprite *ch0_sprites_stand[4];
-
+	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar;
+	
+	/* font stuff */
 	SDL_Color font_default = {255,255,255,255};
 	SDL_Color font_outline = {32,32,128,255};
-	SDL_Surface *font_surf;
-	TTF_Font *font=0;
+	TTF_Font *font = 0;
 
-	int fader_md=0, fader_cnt=0, fade_speed=(5);
+	/* declare stuff for fader mechanism */
+	int fader_md=0, fader_cnt=0, fade_speed=(10);
 #define SET_FADE_IN() {fader_md=1;fader_cnt=255;}
 #define SET_FADE_OUT() {fader_md=2;fader_cnt=0;}
 #define SET_FADE_OFF() {fader_md=0;fader_cnt=0;}
@@ -576,6 +645,8 @@ int main(void)
 	sprt_logo = IMG_Load("logo.png");
 	sprt_titlescreen = IMG_Load("titlescreen.png");
 	
+	gfx_hud_health_l = IMG_Load("hud_health_l.png");
+	
 	
 	#define SPRITE_SET(a,c,d,e,f,g,h)  \
 		a = (sprite *) malloc(sizeof (sprite));  \
@@ -593,19 +664,39 @@ int main(void)
 		a->sprt_arr[c] = IMG_Load(d);
 	
 	
-	/* add test actor*/
-	actor_cnt++;
-	reset_actor(&actors[0]);
+	
+	
+	/* add test actors */
+	for (i=0;i<64;i++)
+		reset_actor(&actors[i]);
+	actor_cnt=64;
 	
 	actors[0].z=1;
 	actors[0].x=50;
 	actors[0].y=-50;
+	actors[0].type=0; /*0=character, 1=other, 2=pickup-item*/
+	
+	/* jar */
+	actors[1].z=1;
+	actors[1].x=70;
+	actors[1].y=-50;
+	actors[1].type=1;
+	
+	/* jar */
+	actors[1].z=1;
+	actors[1].x=70;
+	actors[1].y=-50;
+	actors[1].type=1;
 	
 	testcam.target = &actors[0];
 	
 	
 	
 	/* load sprites */
+	SPRITE_SET(sprt_jar, 8,14, 0, 1, 10,1);
+	SPRITE_LOAD_IMAGE(sprt_jar,0,"jar.png");
+	
+	
 	SPRITE_SET(ch0_sprites_walk[0], 16,28, 0, 2, 10,1);
 	SPRITE_LOAD_IMAGE(ch0_sprites_walk[0],0,"l_0.png");
 	SPRITE_LOAD_IMAGE(ch0_sprites_walk[0],1,"l_1.png");
@@ -651,6 +742,8 @@ int main(void)
 	actors[0].gfx_stand[5] = ch0_sprites_stand[1];
 	actors[0].gfx_stand[6] = ch0_sprites_stand[2];
 	actors[0].gfx_stand[7] = ch0_sprites_stand[3];
+	
+	actors[1].main = sprt_jar;
 	
 	
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
@@ -700,6 +793,7 @@ int main(void)
 	sprt_shad.loop=0;
 	
 	game_mode = MD_LOGO;
+	game_mode_first_loop = 1;
 
 	if(TTF_Init()==-1)
 	{
@@ -753,7 +847,7 @@ int main(void)
 		switch(game_mode)
 		{
 		case MD_LOGO:
-			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
+			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, 255 ) );
 			pos.x = (SWIDTH/2) - (sprt_logo->w / 2);
 			pos.y = (SHEIGHT/2) - (sprt_logo->h / 2);
 			SDL_BlitSurface(sprt_logo,0 , tmpd, &pos);
@@ -771,11 +865,21 @@ int main(void)
 
 			if (cntr_a > (FPS*2) && fader_cnt == 255)
 			{
-				SET_FADE_OFF()
+				game_mode_first_loop=1;
 				game_mode = MD_DEATHMATCH;
 			}
 			break;
 		case MD_DEATHMATCH:
+			
+			if (game_mode_first_loop)
+			{
+				SET_FADE_IN();
+				cntr_c=FPS;
+				game_mode_first_loop=0;
+			}
+			
+			if (cntr_c > 0) cntr_c--;
+			
 			for (i=0;i < actor_cnt;i++)
 			{
 				actors[i].prev_dir = actors[i].dir;
@@ -783,8 +887,7 @@ int main(void)
 			
 			}
 			
-			
-			if (key_wasd_cont)
+			if (key_wasd_cont && cntr_c <= 0)
 			{
 			
 				if (k_w)
@@ -834,66 +937,79 @@ int main(void)
 			/* for each actor */
 			for (i=0;i < actor_cnt;i++)
 			{
-				sprite *use_sprite = 0;
-			
-				switch(actors[i].md)
-				{
-				case CH_WALK:
-					use_sprite = actors[i].gfx_walk[actors[i].dir];
-					break;
-				case CH_STAND:
-					use_sprite = actors[i].gfx_stand[actors[i].dir];
-					break;
-				case CH_JUMP:
-					use_sprite = actors[i].gfx_jump[actors[i].dir];
-					break;
-				}
+				sprite *use_sprite = actors[i].main;
+				
+				if (actors[i].type==0)
+					switch(actors[i].md)
+					{
+					case CH_WALK:
+						use_sprite = actors[i].gfx_walk[actors[i].dir];
+						break;
+					case CH_STAND:
+						use_sprite = actors[i].gfx_stand[actors[i].dir];
+						break;
+					case CH_JUMP:
+						use_sprite = actors[i].gfx_jump[actors[i].dir];
+						break;
+					}
 			
 				if (use_sprite)
-					add_sprite_auto_shadow(&rstest, use_sprite, &sprt_shad, &testcam, actors[i].x,actors[i].y,actors[i].z);
+					add_sprite_auto_shadow(
+						&rstest,
+						use_sprite,
+						(actors[i].type!=1) ? &sprt_shad : 0,
+						&testcam,
+						actors[i].x,
+						actors[i].y,
+						actors[i].z
+						);
 			
 			}
 		
 			/* start render process: */
 		
 			/* clear framebuffers */
-			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0x0F, 0x0F, 0x0F, 255 ) );
-
+			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0,0,0,255 ) );
 		
 			/* render tile map */
 			render_tilemap(tmpd, tmaptest, &testcam);
 		
 			/* render sprites from render sprite list */
 			render_rsprite_list(tmpd, &rstest, tick_shad);
-		
-			/* render text */
-			render_text(tmpd, &font_default, &font_outline, font, "testing", 10,10);
+			
+			render_hud_health_left(tmpd, gfx_hud_health_l, 1.0, 1.0, &font_default, &font_outline, font, "Test Character");
 		
 			/* tick flicker shadow effect */
 			tick_shad *= -1;
+			
+			
 			break;
 		}
 		
-		if (fader_md == FADE_IN)
+		switch (fader_md)
 		{
-			fader_cnt-=fade_speed;
-
+		case FADE_IN:
+			fader_cnt -= fade_speed;
 			if (fader_cnt<=0)
+			{
 				fader_md=0;
-		}
-		else if (fader_md == FADE_OUT)
-		{
-			fader_cnt+=fade_speed;
-
+				fader_cnt=0;
+			}
+			break;
+		case FADE_OUT:
+			fader_cnt += fade_speed;
 			if (fader_cnt>=255)
-				fader_md=255;
+			{
+				fader_md=0;
+				fader_cnt=255;
+			}
+			break;
 		}
-		else
-			fader_cnt=0;
 
 		
 		
 		/* copy framebuffer to surface of window.  update window. */
+		
 		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
 
 		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, fader_cnt ) );
