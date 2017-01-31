@@ -958,20 +958,34 @@ int main(void)
 						key_wasd_cont->md = CH_WALK;
 						key_wasd_cont->dir = DIR_RIGHT;
 					}
+					
+					if ((k_w && k_s) || (k_a && k_d))
+					{
+						key_wasd_cont->dx = key_wasd_cont->dy = 0;
+						key_wasd_cont->md = CH_STAND;
+					}
+						
+					
 
 					if (k_space && key_wasd_cont->jump==0)
 						key_wasd_cont->jump=1;
+					
+					/* if space is held and character has already jumped, do not allow jump. */
+					if (!k_space && key_wasd_cont->jump==-1)
+						key_wasd_cont->jump=0;
 
-					if (key_wasd_cont->jump)
+					if (key_wasd_cont->jump > 0)
 					{
 						/* jump: change z depending on values in ch_jump_ani_table */
 						if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
-							key_wasd_cont->z =
+							key_wasd_cont->dz =
 								ch_jump_ani_table[(key_wasd_cont->jump++)-1];
 						else
-							key_wasd_cont->jump=0;
+							key_wasd_cont->jump=-1;
 
 					}
+					
+					
 				}
 				else /* processing for other actors */
 				{
