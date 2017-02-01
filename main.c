@@ -3,6 +3,9 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
+#include <stdio.h>
+#include <string.h>
+
 #define SWIDTH 320
 #define SHEIGHT 240
 
@@ -152,6 +155,265 @@ typedef struct actor
 	char dir; /* uses DIR_ enums */
 	char prev_dir;
 } actor;
+
+typedef struct ani_obj
+{
+	int idx; /* -1 for inactive*/
+	int x, y;
+} ani_obj;
+
+enum
+{
+	ANI_LOAD,
+	ANI_POST,
+	ANI_UNPOST,
+	ANI_NEXT
+};
+
+typedef struct ani_cmd
+{
+	int cmd;
+	char *fn;
+	int idx;
+	int x;
+	int y;
+	struct ani_cmd *next;
+	
+} ani_cmd;
+
+ani_cmd *new_ani_cmd()
+{
+	ani_cmd *n = (ani_cmd *) malloc(sizeof(ani_cmd));
+	
+	n->cmd = -1;
+	n->fn = 0;
+	n->idx = -1;
+	n->x = 0;
+	n->y = 0;
+	n->next = 0;
+	
+	return n;
+}
+
+/* pointer passed must be set to 0 outside of function */
+void free_ani_cmd(ani_cmd *head)
+{
+	ani_cmd *a, *b;
+	
+	if (!head)
+		return;
+	
+	a = head;
+	
+	while (a)
+	{
+		b = a->next;
+		if (a->fn)
+			free(a->fn);
+		free(a);
+		a=b;
+	}
+}
+
+int parse_for_ani_cmd(ani_cmd *cmd, const char *line, int start)
+{
+	char buf[256];
+	int buf_nxt = 0;
+	int buf_is_int = 1;
+	int int_arg = 0;
+	int ln;
+	
+	int line_nxt = start;
+	
+	ln=strlen(line);
+	
+	while (line_nxt < ln)
+	{
+		if (line[line_nxt] == ' ' || line[line_nxt] == ';')
+		{
+			/* make comparisons if buffer has some stuff in it */
+			if (buf_nxt > 0)
+			{
+				buf[buf_nxt]='\0';
+				
+				if (cmd->cmd==-1)
+				{
+					if (!strcmp(buf, "load") || !strcmp(buf, "l"))
+						cmd->cmd = ANI_LOAD;
+					if (!strcmp(buf, "post") || !strcmp(buf, "p"))
+						cmd->cmd = ANI_POST;
+					if (!strcmp(buf, "unpost") || !strcmp(buf, "u"))
+						cmd->cmd = ANI_UNPOST;
+					if (!strcmp(buf, "next") || !strcmp(buf, "n"))
+						cmd->cmd = ANI_NEXT;
+				}
+				else
+				{
+					if (buf_is_int)
+					{
+						if (int_arg==0)
+							cmd->idx = atoi(buf);
+						if (int_arg==1)
+							cmd->x = atoi(buf);
+						if (int_arg==2)
+							cmd->y = atoi(buf);
+							
+						int_arg++;
+					}
+					else
+					{
+						cmd->fn = malloc(strlen(buf) + 2);
+						strcpy(cmd->fn, buf);
+					}
+				}
+				
+				buf_nxt=0;
+				buf_is_int=1;
+			}
+		}
+		else
+		{
+			if (!(line[line_nxt] >= '0' && line[line_nxt] <= '9'))
+				buf_is_int = 0;
+			
+			buf[buf_nxt] = line[line_nxt];
+			
+			if (buf_nxt<255)
+				buf_nxt++;
+		}
+		
+		if (line[line_nxt] == ';')
+		{
+			cmd->next = new_ani_cmd();
+			cmd = cmd->next;
+			int_arg = 0;
+		}
+		
+		line_nxt++;
+	}
+	
+	return line_nxt;
+}
+
+typedef struct ani
+{	
+	ani_cmd *cmd;
+	
+	ani_obj *obj;/*64*/
+	
+	int obj_cnt;
+	
+	ani_cmd *cmd_cur;
+	
+	SDL_Surface **gfx_dat;/* 64 */
+	
+	int gfx_cnt;
+	
+} ani;
+
+ani *new_ani(char *script)
+{
+	int i, ln;
+	
+	ln=strlen(script);
+		
+	ani *n = (ani*) malloc(sizeof(ani));
+	
+	n->obj = (ani_obj*) malloc(sizeof(ani_obj) * 64);
+	
+	for (i=0;i<64;i++)
+	{
+		n->obj[i].idx=-1;
+		n->obj[i].x=0;
+		n->obj[i].y=0;
+	}
+	
+	n->obj_cnt = 0;
+		
+	n->cmd=new_ani_cmd();
+		
+	parse_for_ani_cmd(n->cmd,script,0);
+		
+	n->cmd_cur = n->cmd;
+	
+	n->gfx_dat =  (SDL_Surface**) malloc(sizeof(SDL_Surface*) * 64);
+	
+	n->gfx_cnt = 0;
+	
+	return n;
+	
+}
+
+void free_ani(ani *in)
+{
+	int i;
+	
+	free_ani_cmd(in->cmd);
+	
+	free(in->obj);
+	
+	for (i=0;i<64;i++)
+		if (in->gfx_dat[i])
+			SDL_FreeSurface(in->gfx_dat[i]);
+	
+	free(in->gfx_dat);
+	
+	free(in);
+}
+
+void ani_frame(ani *in, SDL_Surface *dst)
+{
+	int i, lp = 1;
+	SDL_Rect tpos;
+	
+	while (in->cmd_cur && lp)
+	{
+		switch(in->cmd_cur->cmd)
+		{
+		case ANI_LOAD:
+			if (in->cmd_cur->fn)
+				if (in->gfx_cnt < 64)
+					in->gfx_dat[(in->gfx_cnt)++] = IMG_Load(in->cmd_cur->fn);
+			break;
+		case ANI_POST:
+			for(i=0;i<64;i++)
+			{
+				if (in->obj[i].idx == -1)
+				{
+					in->obj[i].idx = in->cmd_cur->idx;
+					in->obj[i].x = in->cmd_cur->x;
+					in->obj[i].y = in->cmd_cur->y;
+					
+					break;
+				}
+			}
+			break;
+		case ANI_UNPOST:
+			for(i=0;i<64;i++)
+				if (in->obj[i].idx == in->cmd_cur->idx)
+					in->obj[i].idx = -1;
+			break;
+		case ANI_NEXT:
+			lp=0;
+			break;
+		}
+		
+		in->cmd_cur = in->cmd_cur->next;
+	}
+	
+	for (i=0;i<64;i++)
+	{
+		if (in->obj[i].idx >= 0 && in->gfx_dat[in->obj[i].idx])
+		{
+			tpos.x=in->obj[i].x;
+			tpos.y=in->obj[i].y;
+			SDL_BlitSurface(in->gfx_dat[in->obj[i].idx],0 , dst, &tpos);
+		}
+	}
+	
+	
+	
+}
 
 typedef struct cam
 {
@@ -634,6 +896,7 @@ int main(void)
 	cam testcam;
 	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar;
 	float ch0_health=1.0;
+	ani *test_ani;
 	
 	/* font stuff */
 	SDL_Color font_default = {255,255,255,255};
@@ -832,7 +1095,7 @@ int main(void)
 	sprt_shad.frame_cnt=1;
 	sprt_shad.frame_cur=0;
 	sprt_shad.sprt_arr = (SDL_Surface**) malloc( sizeof (SDL_Surface*) );
-	sprt_shad.sprt_arr[0] = IMG_Load("shad.png");;
+	sprt_shad.sprt_arr[0] = IMG_Load("shad.png");
 	sprt_shad.intrv=0;
 	sprt_shad.loop=0;
 	
@@ -854,6 +1117,15 @@ int main(void)
 
 	SET_FADE_IN();
 	cntr_a=cntr_b=cntr_c=0;
+	
+	test_ani = new_ani("n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;l jar.png;p 0 50 50;n;\
+u 0;p 0 50 50;n;n;n;\
+u 0;p 0 60 50;n;n;n;\
+u 0;p 0 70 50;n;n;n;\
+u 0;p 0 80 50;n;n;n;\
+u 0;p 0 90 50;n;n;n;\
+u 0;p 0 100 50;n;n;n;");
+
 
 	/* run things: */
 
@@ -910,8 +1182,80 @@ int main(void)
 			if (cntr_a > (FPS*2) && fader_cnt == 255)
 			{
 				game_mode_first_loop=1;
+				game_mode = MD_MENU;
+			}
+			break;
+		case MD_MENU:
+			if (game_mode_first_loop)
+			{
+				SET_FADE_IN();
+				game_mode_first_loop=0;
+				
+				test_ani = new_ani("\
+l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;\
+n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
+n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
+u 1;p 1 71 0;n;\
+u 1;p 1 71 5;n;\
+u 1;p 1 71 10;n;\
+u 1;p 1 71 15;n;\
+u 1;p 1 71 20;n;\
+u 1;p 1 71 25;n;\
+u 1;p 1 71 30;n;\
+u 1;p 1 71 35;n;\
+u 1;p 1 71 40;n;\
+u 1;p 1 71 45;n;\
+u 1;p 1 71 50;n;\
+u 1;p 1 71 55;n;\
+u 1;p 1 71 60;n;\
+u 1;p 1 71 65;n;\
+u 1;p 1 71 70;n;\
+u 1;p 1 71 75;n;\
+u 1;p 1 71 80;n;\
+u 1;p 1 71 85;n;\
+u 1;p 1 71 90;n;\
+u 1;p 1 71 95;n;\
+u 1;p 1 71 100;n;\
+u 1;p 1 71 105;n;\
+u 1;p 1 71 110;n;\
+u 1;p 1 71 115;n;\
+u 1;p 1 71 120;n;\
+u 1;p 1 71 126;n;\
+u 1;p 1 71 128;n;\
+u 1;p 1 71 131;n;\
+u 1;p 1 71 141;n;\
+u 1;p 1 71 151;n;\
+u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
+u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;\
+u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
+u 2;u 3;n");
+				
+				cntr_c=0;
+				
+				ani_frame(test_ani, tmpd);
+			}
+			
+			
+			if (cntr_c==0 && fader_cnt)
+				cntr_c=1;
+			
+			if (cntr_c==1)
+				ani_frame(test_ani, tmpd);
+			
+			if (cntr_c==1 && k_space)
+			{
+				SET_FADE_OUT();
+				
+				cntr_c++;
+			}
+				
+			
+			if (cntr_c==2 && fader_cnt==255)
+			{
+				game_mode_first_loop=1;
 				game_mode = MD_DEATHMATCH;
 			}
+			
 			break;
 		case MD_DEATHMATCH:
 			
