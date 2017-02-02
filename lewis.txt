@@ -1,0 +1,12 @@
+
+#TASK# tilemap editing 2-2-2017 (level design)
+
+install Tiled.
+
+create an example tilemap.  By end of today, I will fill the folder "level_design" with 24x24 png format tiles for use in Tiled.
+
+save in JSON format in folder "level_design".
+
+it can be any size, but more would be better.
+
+#END#

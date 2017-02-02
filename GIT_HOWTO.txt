@@ -1,0 +1,32 @@
+Download:  Go on google and type “git for windows”.
+Install:  Should just double click and install.  Keep clicking “next”.
+
+For what’s below, use “Git Bash”.
+
+Clone:
+- $ git clone https://github.com/brachus/2017_capstone.git
+
+Get latest snapshot:
+- Go into the git repo folder (the one with “2017_capstone” and “level_design” in it)
+- $ git pull origin master
+
+Adding changes to repo:
+- “git add .”
+- “git commit”
+   Don’t move the text cursor;  Just type in a one-line description on the changes you’ve made, press Escape, and type “:wq” and press enter.
+   This should commit the changes.
+- “git push”
+   Use your github.com username and password.
+
+
+
+Bash Basics:
+cd - change directory, e.g. "cd Desktop" to go into Desktop folder.
+	"cd .." change to parent folder.
+	"cd ~" navigate to home folder.
+mkdir  - make direcotry, e.g. "mkdir git" would create folder name git in current directory.
+rm - remove file, e.g. "rm test.txt"
+ls - list files
+
+
+If there are any problems, email kyle.m.caldbeck@gmail.com
