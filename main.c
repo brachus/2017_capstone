@@ -136,7 +136,7 @@ int parse_for_ani_cmd(ani_cmd *cmd, const char *line, int start)
 	
 	while (line_nxt < ln)
 	{
-		if (line[line_nxt] == ' ' || line[line_nxt] == ';')
+		if (line[line_nxt] == ' ' || line[line_nxt] == ';' || line[line_nxt] == '\t')
 		{
 			/* make comparisons if buffer has some stuff in it */
 			if (buf_nxt > 0)
@@ -180,7 +180,7 @@ int parse_for_ani_cmd(ani_cmd *cmd, const char *line, int start)
 		}
 		else
 		{
-			if (!(line[line_nxt] >= '0' && line[line_nxt] <= '9'))
+			if (!(line[line_nxt] >= '0' && line[line_nxt] <= '9') &&  line[line_nxt] != '-')
 				buf_is_int = 0;
 			
 			buf[buf_nxt] = line[line_nxt];
@@ -205,10 +205,11 @@ int parse_for_ani_cmd(ani_cmd *cmd, const char *line, int start)
 ani *new_ani(char *script)
 {
 	int i, ln;
+	ani *n;
 	
 	ln=strlen(script);
 		
-	ani *n = (ani*) malloc(sizeof(ani));
+	n = (ani*) malloc(sizeof(ani));
 	
 	n->obj = (ani_obj*) malloc(sizeof(ani_obj) * 64);
 	
@@ -266,7 +267,18 @@ void ani_frame(ani *in, SDL_Surface *dst)
 		case ANI_LOAD:
 			if (in->cmd_cur->fn)
 				if (in->gfx_cnt < 64)
+				{
+					
 					in->gfx_dat[(in->gfx_cnt)++] = IMG_Load(in->cmd_cur->fn);
+
+					if (!in->gfx_dat[(in->gfx_cnt)])
+					{
+						printf("loading \"%s\" failed!\n", in->cmd_cur->fn);
+						exit(1);
+					}
+					else
+						printf("\"%s\" load ok!\n", in->cmd_cur->fn);
+				}
 			break;
 		case ANI_POST:
 			for(i=0;i<64;i++)
@@ -303,12 +315,12 @@ void ani_frame(ani *in, SDL_Surface *dst)
 		{
 			tpos.x=in->obj[i].x;
 			tpos.y=in->obj[i].y;
-			SDL_BlitSurface(in->gfx_dat[in->obj[i].idx],0 , dst, &tpos);
+			if (!in->gfx_dat[in->obj[i].idx])
+					printf("blit failed\n");
+			else
+					SDL_BlitSurface(in->gfx_dat[in->obj[i].idx],0 , dst, &tpos);
 		}
 	}
-	
-	
-	
 }
 
 void reset_actor(actor *in)
@@ -328,7 +340,10 @@ void reset_actor(actor *in)
 	in->dir=DIR_DOWN;
 	in->prev_dir=DIR_DOWN;
 	in->md=CH_STAND;
+	in->type=1;
 	in->jump=0;
+
+	in->active=0;
 	
 	for (i=0;i<8;i++)
 	{
@@ -433,6 +448,8 @@ void add_sprite_auto_shadow(
 	rx = (SWIDTH/2) + x - cx;
 	ry = (SHEIGHT/2) - y - z + cy;
 	bry = (SHEIGHT/2) - y + cy;
+
+	
 	
 	/* step animation */
 	if (sprt->cnt0++ >= sprt->intrv)
@@ -826,24 +843,24 @@ int main(void)
 	/* add test actors */
 	for (i=0;i<64;i++)
 		reset_actor(&actors[i]);
+
 	actor_cnt=64;
 	
 	actors[0].z=1;
 	actors[0].x=50;
 	actors[0].y=-50;
 	actors[0].type=0; /*0=character, 1=other, 2=pickup-item*/
+
+	actors[0].active=1;
 	
 	/* jar */
 	actors[1].z=1;
 	actors[1].x=70;
 	actors[1].y=-50;
 	actors[1].type=1;
+
+	actors[0].active=1;
 	
-	/* jar */
-	actors[1].z=1;
-	actors[1].x=70;
-	actors[1].y=-50;
-	actors[1].type=1;
 	
 	testcam.target = &actors[0];
 	
@@ -1038,7 +1055,45 @@ int main(void)
 				
 				game_mode_first_loop=0;
 				
-				#include "test_ani_title.c"
+				test_ani = new_ani("\
+				l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;\
+				n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
+				n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
+				u 1;p 1 71 0;n;\
+				u 1;p 1 71 5;n;\
+				u 1;p 1 71 10;n;\
+				u 1;p 1 71 15;n;\
+				u 1;p 1 71 20;n;\
+				u 1;p 1 71 25;n;\
+				u 1;p 1 71 30;n;\
+				u 1;p 1 71 35;n;\
+				u 1;p 1 71 40;n;\
+				u 1;p 1 71 45;n;\
+				u 1;p 1 71 50;n;\
+				u 1;p 1 71 55;n;\
+				u 1;p 1 71 60;n;\
+				u 1;p 1 71 65;n;\
+				u 1;p 1 71 70;n;\
+				u 1;p 1 71 75;n;\
+				u 1;p 1 71 80;n;\
+				u 1;p 1 71 85;n;\
+				u 1;p 1 71 90;n;\
+				u 1;p 1 71 95;n;\
+				u 1;p 1 71 100;n;\
+				u 1;p 1 71 105;n;\
+				u 1;p 1 71 110;n;\
+				u 1;p 1 71 115;n;\
+				u 1;p 1 71 120;n;\
+				u 1;p 1 71 126;n;\
+				u 1;p 1 71 128;n;\
+				u 1;p 1 71 131;n;\
+				u 1;p 1 71 141;n;\
+				u 1;p 1 71 151;n;\
+				u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
+				u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;\
+				u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
+				u 2;u 3;n");
+
 				
 				cntr_c=0;
 				
@@ -1159,6 +1214,9 @@ int main(void)
 			for (i=0;i < actor_cnt;i++)
 			{
 				sprite *use_sprite = actors[i].main;
+
+				if (!actors[i].active)
+					continue;
 				
 				if (actors[i].type==0)
 					switch(actors[i].md)

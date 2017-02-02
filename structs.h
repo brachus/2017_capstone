@@ -59,6 +59,8 @@ typedef struct actor
 	int jump;
 	
 	int type;
+
+	int active;
 	
 	/* for each of these, in order:
 	 * 	facing left, 

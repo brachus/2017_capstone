@@ -1,19 +1,21 @@
-﻿Build started 1/26/2017 12:41:06 PM.
-     1>Project "C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\2017_Capstone\2017_Capstone.vcxproj" on node 2 (Build target(s)).
+﻿Build started 2/2/2017 11:22:32 AM.
+     1>Project "C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\2017_Capstone\2017_Capstone.vcxproj" on node 2 (Build target(s)).
      1>ClCompile:
-         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\CL.exe /c /I"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\sdl2\SDL2_ttf-devel-2.0.14-VC\SDL2_ttf-2.0.14\include" /I"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\sdl2\SDL2-devel-2.0.5-VC\SDL2-2.0.5\include" /I"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\sdl2\SDL2_image-devel-2.0.1-VC\SDL2_image-2.0.1\include" /ZI /nologo /W3 /WX- /Od /Oy- /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc110.pdb" /Gd /TC /analyze- /errorReport:prompt ..\..\main.c
+         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\CL.exe /c /I"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\sdl2\SDL2_ttf-devel-2.0.14-VC\SDL2_ttf-2.0.14\include" /I"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\sdl2\SDL2-devel-2.0.5-VC\SDL2-2.0.5\include" /I"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\sdl2\SDL2_image-devel-2.0.1-VC\SDL2_image-2.0.1\include" /ZI /nologo /W3 /WX- /Od /Oy- /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc110.pdb" /Gd /TC /analyze- /errorReport:prompt ..\..\main.c
          main.c
-     1>c:\users\ncc lab user\downloads\2017_capstone\main.c(281): warning C4101: 'i' : unreferenced local variable
-     1>c:\users\ncc lab user\downloads\2017_capstone\main.c(500): warning C4026: function declared with formal parameter list
-     1>c:\users\ncc lab user\downloads\2017_capstone\main.c(658): warning C4013: 'printf' undefined; assuming extern returning int
-     1>c:\users\ncc lab user\downloads\2017_capstone\main.c(528): warning C4101: 'font_surf' : unreferenced local variable
-     1>c:\users\ncc lab user\downloads\2017_capstone\main.c(514): warning C4101: 'sprt_shadow' : unreferenced local variable
-     1>c:\users\ncc lab user\downloads\2017_capstone\main.c(503): warning C4101: 'k' : unreferenced local variable
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(162): warning C4013: 'atoi' undefined; assuming extern returning int
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(173): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+                 c:\program files (x86)\microsoft visual studio 11.0\vc\include\string.h(110) : see declaration of 'strcpy'
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(430): warning C4101: 'i' : unreferenced local variable
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(684): warning C4244: '=' : conversion from 'float' to 'int', possible loss of data
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(740): warning C4026: function declared with formal parameter list
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(754): warning C4101: 'sprt_shadow' : unreferenced local variable
+     1>c:\users\ncc lab user\git\2017_capstone\main.c(743): warning C4101: 'k' : unreferenced local variable
        Link:
-         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\Debug\2017_Capstone.exe" /INCREMENTAL /NOLOGO /LIBPATH:"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\sdl2\SDL2_ttf-devel-2.0.14-VC\SDL2_ttf-2.0.14\lib\x86" /LIBPATH:"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\sdl2\SDL2-devel-2.0.5-VC\SDL2-2.0.5\lib\x86" /LIBPATH:"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\sdl2\SDL2_image-devel-2.0.1-VC\SDL2_image-2.0.1\lib\x86" kernel32.lib user32.lib gdi32.lib SDL2_ttf.lib SDL2_image.lib SDL2.lib SDL2main.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\Debug\2017_Capstone.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\Debug\2017_Capstone.lib" /MACHINE:X86 Debug\main.obj
-         2017_Capstone.vcxproj -> C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\Debug\2017_Capstone.exe
-     1>Done Building Project "C:\Users\NCC Lab User\Downloads\2017_capstone\2017_Capstone\2017_Capstone\2017_Capstone.vcxproj" (Build target(s)).
+         C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\Debug\2017_Capstone.exe" /INCREMENTAL /NOLOGO /LIBPATH:"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\sdl2\SDL2_ttf-devel-2.0.14-VC\SDL2_ttf-2.0.14\lib\x86" /LIBPATH:"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\sdl2\SDL2-devel-2.0.5-VC\SDL2-2.0.5\lib\x86" /LIBPATH:"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\sdl2\SDL2_image-devel-2.0.1-VC\SDL2_image-2.0.1\lib\x86" kernel32.lib user32.lib gdi32.lib SDL2_ttf.lib SDL2_image.lib SDL2.lib SDL2main.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\Debug\2017_Capstone.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\Debug\2017_Capstone.lib" /MACHINE:X86 Debug\main.obj
+         2017_Capstone.vcxproj -> C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\Debug\2017_Capstone.exe
+     1>Done Building Project "C:\Users\NCC Lab User\git\2017_capstone\2017_Capstone\2017_Capstone\2017_Capstone.vcxproj" (Build target(s)).
 
 Build succeeded.
 
-Time Elapsed 00:00:00.66
+Time Elapsed 00:00:00.54
