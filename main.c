@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
+
+
 #define SWIDTH 320
 #define SHEIGHT 240
 
@@ -56,6 +58,16 @@ enum
 	FADE_OUT
 };
 
+enum
+{
+	ANI_LOAD,
+	ANI_POST,
+	ANI_UNPOST,
+	ANI_NEXT
+};
+
+#include "structs.h"
+
 void tick_frame(int fps)
 {
 	static unsigned int prevtime;
@@ -73,113 +85,8 @@ void tick_frame(int fps)
 	prevtime = SDL_GetTicks();
 }
 
-typedef struct
-{
-	
-	int game_md;
-	
-	/** title menu vars: **/
-	
-	/* [var to hold sound bite] */
-	SDL_Surface **ani_a; /* vars for animated menu graphcs.  ani_a would be intro, ani_b would be looping */
-	int ani_a_frame_cnt;
-	SDL_Surface **ani_b;
-	int ani_b_frame_cnt;
-	int ani_cur_frame;
-	char *options[6]; /* up to 6 string options */
-	int option_md[6]; /* corresponding mode for each option.  these will end up be some enum. */
-	
-} main_state;
 
 
-typedef struct
-{
-	int cx;
-	int cy;
-	
-	int transp;
-	
-	int frame_cnt;
-	int frame_cur;
-	char *fn_arr[256];
-	SDL_Surface **sprt_arr;
-	int intrv;
-	int loop;
-	int cnt0;
-	
-	int active;
-} sprite;
-
-typedef struct actor
-{
-	int x;
-	int y;
-	int z;
-	
-	int dx;
-	int dy;
-	int dz;
-	
-	int bbox_w;
-	int bbox_h; /* bounding box width/height.
-				 * center of bbox is always x,y,z. 
-				 * (more like a plane).
-				 * 
-				 * this is used for collisions/movement clipping.
-				 */
-	
-	int md;
-
-	int jump;
-	
-	int type;
-	
-	/* for each of these, in order:
-	 * 	facing left, 
-	 * 	right, 
-	 * 	up,
-	 * 	down,
-	 * 	up-left,
-	 * 	up-right,
-	 * 	down-left,
-	 * 	down-right
-	 */
-	sprite *gfx_stand[8]; /* we should focus on these the most for now */
-	sprite *gfx_walk[8];
-	sprite *gfx_jump[8];
-	
-	sprite *gfx_run[8];
-	
-	sprite *main;
-	
-	char dir; /* uses DIR_ enums */
-	char prev_dir;
-} actor;
-
-typedef struct ani_obj
-{
-	int idx; /* -1 for inactive*/
-	int x, y;
-} ani_obj;
-
-enum
-{
-	ANI_LOAD,
-	ANI_POST,
-	ANI_UNPOST,
-	ANI_NEXT
-};
-
-typedef struct ani_cmd
-{
-	int cmd;
-	char *fn;
-	int idx;
-	int x;
-	int y;
-	struct ani_cmd *next;
-	
-} ani_cmd;
 
 ani_cmd *new_ani_cmd()
 {
@@ -295,22 +202,6 @@ int parse_for_ani_cmd(ani_cmd *cmd, const char *line, int start)
 	return line_nxt;
 }
 
-typedef struct ani
-{	
-	ani_cmd *cmd;
-	
-	ani_obj *obj;/*64*/
-	
-	int obj_cnt;
-	
-	ani_cmd *cmd_cur;
-	
-	SDL_Surface **gfx_dat;/* 64 */
-	
-	int gfx_cnt;
-	
-} ani;
-
 ani *new_ani(char *script)
 {
 	int i, ln;
@@ -339,6 +230,8 @@ ani *new_ani(char *script)
 	n->gfx_dat =  (SDL_Surface**) malloc(sizeof(SDL_Surface*) * 64);
 	
 	n->gfx_cnt = 0;
+	
+	n->done=0;
 	
 	return n;
 	
@@ -401,6 +294,9 @@ void ani_frame(ani *in, SDL_Surface *dst)
 		in->cmd_cur = in->cmd_cur->next;
 	}
 	
+	if (!in->cmd_cur)
+		in->done=1;
+	
 	for (i=0;i<64;i++)
 	{
 		if (in->obj[i].idx >= 0 && in->gfx_dat[in->obj[i].idx])
@@ -414,53 +310,6 @@ void ani_frame(ani *in, SDL_Surface *dst)
 	
 	
 }
-
-typedef struct cam
-{
-	int x; /* x,y are the 'center' of the camera. */
-	int y;
-	
-	int use_bounds;
-	
-	int bx0; /* top-left in world coordinates */
-	int by0;
-	int bx1; /* bottom-right in world coordinates */
-	int by1;
-	
-	actor *target; /* if not null, override x,y and focus target as center. */
-} cam;
-
-typedef struct tilemap
-{
-	int w;
-	int h;
-	int ntiles;
-	int **arr; /* [row] [column]*/
-	SDL_Surface **tiles;
-} tilemap;
-
-
-typedef struct render_sprite
-{
-	short cx;
-	short cy;
-	int bx;
-	int by;
-	int x;
-	int y;
-	int transp; /* 0=no effect, 1|2=do shad effect */
-	SDL_Surface *sprt;
-	int active;
-	
-	struct render_sprite *next;
-} render_sprite;
-
-typedef struct render_sprite_head
-{
-	int shad_cnt;
-	int sprt_cnt;
-	render_sprite *next;
-} render_sprite_head;
 
 void reset_actor(actor *in)
 {
@@ -908,6 +757,7 @@ int main(void)
 #define SET_FADE_IN() {fader_md=1;fader_cnt=255;}
 #define SET_FADE_OUT() {fader_md=2;fader_cnt=0;}
 #define SET_FADE_OFF() {fader_md=0;fader_cnt=0;}
+#define SET_FADE_ON() {fader_md=0;fader_cnt=255;}
 	
 	pos0.x = pos0.y = 0;
 	
@@ -1116,15 +966,8 @@ int main(void)
 	}
 
 	SET_FADE_IN();
-	cntr_a=cntr_b=cntr_c=0;
 	
-	test_ani = new_ani("n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;l jar.png;p 0 50 50;n;\
-u 0;p 0 50 50;n;n;n;\
-u 0;p 0 60 50;n;n;n;\
-u 0;p 0 70 50;n;n;n;\
-u 0;p 0 80 50;n;n;n;\
-u 0;p 0 90 50;n;n;n;\
-u 0;p 0 100 50;n;n;n;");
+	cntr_a=cntr_b=cntr_c=0;
 
 
 	/* run things: */
@@ -1167,68 +1010,35 @@ u 0;p 0 100 50;n;n;n;");
 			pos.x = (SWIDTH/2) - (sprt_logo->w / 2);
 			pos.y = (SHEIGHT/2) - (sprt_logo->h / 2);
 			SDL_BlitSurface(sprt_logo,0 , tmpd, &pos);
-
-			if (k_space)
-			{
-				SET_FADE_OFF()
-				game_mode = MD_DEATHMATCH;
-			}
 			
-			cntr_a++;
+			if (k_space && cntr_a>0 && cntr_a < FPS)
+				cntr_a=FPS-1;
 
-			if (cntr_a == (FPS*2))
+			if (fader_cnt==0 && cntr_a==0)
+				cntr_a=1;
+				
+			if (cntr_a>0 && cntr_a<=FPS)
+				cntr_a++;
+			
+			if (cntr_a==FPS)
 				SET_FADE_OUT();
 
-			if (cntr_a > (FPS*2) && fader_cnt == 255)
+			if (cntr_a > FPS && fader_cnt == 255)
 			{
 				game_mode_first_loop=1;
 				game_mode = MD_MENU;
+				
+				SET_FADE_ON();
 			}
 			break;
 		case MD_MENU:
 			if (game_mode_first_loop)
-			{
+			{				
 				SET_FADE_IN();
+				
 				game_mode_first_loop=0;
 				
-				test_ani = new_ani("\
-l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;\
-n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
-n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
-u 1;p 1 71 0;n;\
-u 1;p 1 71 5;n;\
-u 1;p 1 71 10;n;\
-u 1;p 1 71 15;n;\
-u 1;p 1 71 20;n;\
-u 1;p 1 71 25;n;\
-u 1;p 1 71 30;n;\
-u 1;p 1 71 35;n;\
-u 1;p 1 71 40;n;\
-u 1;p 1 71 45;n;\
-u 1;p 1 71 50;n;\
-u 1;p 1 71 55;n;\
-u 1;p 1 71 60;n;\
-u 1;p 1 71 65;n;\
-u 1;p 1 71 70;n;\
-u 1;p 1 71 75;n;\
-u 1;p 1 71 80;n;\
-u 1;p 1 71 85;n;\
-u 1;p 1 71 90;n;\
-u 1;p 1 71 95;n;\
-u 1;p 1 71 100;n;\
-u 1;p 1 71 105;n;\
-u 1;p 1 71 110;n;\
-u 1;p 1 71 115;n;\
-u 1;p 1 71 120;n;\
-u 1;p 1 71 126;n;\
-u 1;p 1 71 128;n;\
-u 1;p 1 71 131;n;\
-u 1;p 1 71 141;n;\
-u 1;p 1 71 151;n;\
-u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
-u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;\
-u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
-u 2;u 3;n");
+				#include "test_ani_title.c"
 				
 				cntr_c=0;
 				
@@ -1236,13 +1046,16 @@ u 2;u 3;n");
 			}
 			
 			
-			if (cntr_c==0 && fader_cnt)
+			if (cntr_c==0 && fader_cnt==0)
 				cntr_c=1;
 			
 			if (cntr_c==1)
 				ani_frame(test_ani, tmpd);
 			
-			if (cntr_c==1 && k_space)
+			if (test_ani->done && cntr_c==1)
+				cntr_c=2;
+			
+			if (cntr_c==2 && k_space)
 			{
 				SET_FADE_OUT();
 				
@@ -1250,7 +1063,7 @@ u 2;u 3;n");
 			}
 				
 			
-			if (cntr_c==2 && fader_cnt==255)
+			if (cntr_c==3 && fader_cnt==255)
 			{
 				game_mode_first_loop=1;
 				game_mode = MD_DEATHMATCH;
@@ -1395,6 +1208,7 @@ u 2;u 3;n");
 			break;
 		}
 		
+		
 		switch (fader_md)
 		{
 		case FADE_IN:
@@ -1421,8 +1235,10 @@ u 2;u 3;n");
 		
 		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
 
-		SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, fader_cnt ) );
+		SDL_SetSurfaceAlphaMod( tmpd, 255-fader_cnt );
 
+		SDL_FillRect( main_display, 0, SDL_MapRGBA( main_display->format, 0, 0, 0, 255 ) );
+		
 		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
 
 		SDL_UpdateWindowSurface(win);

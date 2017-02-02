@@ -1,7 +1,7 @@
 
 TODO's for prototype:
 
--  Implement basic script animation system:
+-  basic script animation system:
 	<overall, command based.  everything is separated by semicolons>
 	load "path" - load image file as sprite.  centerxy is center of image.
 			image is refered to by indexes generated from 0.
