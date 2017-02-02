@@ -169,3 +169,47 @@ typedef struct render_sprite_head
 	render_sprite *next;
 } render_sprite_head;
 
+
+typedef struct controller
+{
+	int up;
+	int down;
+	int left;
+	int right;
+	
+	int jump;
+	
+	int attk_a; /* jabs */
+	int attk_b; /* mid  */
+	int attk_c; /* full */
+	
+	int we; /* toggle through weapons */
+	
+	int inv; /* menu pop up, should be referred as "start" also. */
+	
+	int key_up;
+	int key_down;
+	int key_left;
+	int key_right;
+	int key_jump;
+	int key_attk_a;
+	int key_attk_b;
+	int key_attk_c;
+	int key_we;
+	int key_inv;
+	
+	int set;
+	
+} controller;
+
+typedef struct item
+{
+	int type;
+	struct item *next;
+} item;
+
+typedef struct inventory
+{
+	item *store;
+	
+} inventory;

@@ -1,15 +1,24 @@
 
+#include <stdio.h>
+#include <string.h>
+
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
-#include <stdio.h>
-#include <string.h>
 
+
+#ifdef LINUX
+#include <unistd.h>
+#else
+
+#endif
 
 
 #define SWIDTH 320
 #define SHEIGHT 240
+
+#define SMULT 2
 
 #define TILESIZE 16
 
@@ -20,6 +29,8 @@
 
 enum
 {
+	MD_CTLR_CHECK,
+	MD_SET_CONTROLS,
 	MD_LOGO,
 	MD_MENU,
 	MD_OPTIONS,
@@ -268,10 +279,9 @@ void ani_frame(ani *in, SDL_Surface *dst)
 			if (in->cmd_cur->fn)
 				if (in->gfx_cnt < 64)
 				{
-					
 					in->gfx_dat[(in->gfx_cnt)++] = IMG_Load(in->cmd_cur->fn);
 
-					if (!in->gfx_dat[(in->gfx_cnt)])
+					if (!in->gfx_dat[(in->gfx_cnt)-1])
 					{
 						printf("loading \"%s\" failed!\n", in->cmd_cur->fn);
 						exit(1);
@@ -631,13 +641,72 @@ void render_text(SDL_Surface *dst, SDL_Color *fg, SDL_Color *bg, TTF_Font *font,
 	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
 	SDL_FreeSurface(font_surf);
 	
-	tmppos.x--; tmppos.y++;
+	tmppos.x--;
 	
 	font_surf = TTF_RenderText_Solid(font, msg, *fg);
 	
 	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
 	
 	tmppos.x--;
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	
+	
+	SDL_FreeSurface(font_surf);
+}
+
+void render_text_centered(SDL_Surface *dst, SDL_Color *fg, SDL_Color *bg, TTF_Font *font, char *msg, int x, int y)
+{
+	SDL_Rect tmppos;
+	SDL_Surface *font_surf;
+	
+	font_surf = TTF_RenderText_Solid(font, msg, *bg);
+	
+	tmppos.x=x - font_surf->w/2;
+	tmppos.y=y - font_surf->h/2;
+	
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	SDL_FreeSurface(font_surf);
+	
+	
+	tmppos.x--;
+	
+	font_surf = TTF_RenderText_Solid(font, msg, *fg);
+	
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	
+	tmppos.x--;
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	
+	
+	SDL_FreeSurface(font_surf);
+}
+
+void render_text_centered_noalpha(SDL_Surface *dst, SDL_Color *fg, SDL_Color *bg, TTF_Font *font, char *msg, int x, int y)
+{
+	SDL_Rect tmppos;
+	SDL_Surface *font_surf;
+	
+	
+	
+	font_surf = TTF_RenderText_Solid(font, msg, *fg);
+	
+	tmppos.x=x - font_surf->w/2;
+	tmppos.y=y - font_surf->h/2;
+	tmppos.w=font_surf->w + 1;
+	tmppos.h=font_surf->h;
+	
+	tmppos.x--;
+	
+	SDL_FillRect( dst, &tmppos, SDL_MapRGBA( dst->format, bg->r, bg->g, bg->b, 128	 ) );
+	
+	tmppos.x++;
+	
+	tmppos.w=0;
+	tmppos.h=0;
+	
+	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
+	
+	tmppos.x++;
 	SDL_BlitSurface(font_surf,0 , dst, &tmppos);
 	
 	
@@ -725,7 +794,7 @@ void actor_apply_delta_doclip( actor *a, actor **all, tilemap *tm)
 /* applies dxyz to xyz vars in actor, while clipping
  * against other actors and a tilemap.
  */
-void actor_apply_delta_noclip( actor *a)
+void actor_apply_delta_noclip(actor *a)
 {
 	a->x += a->dx;
 	a->y += a->dy;
@@ -735,6 +804,175 @@ void actor_apply_delta_noclip( actor *a)
 	
 }
 
+void reset_controller(controller *a)
+{
+	a->up = 0;
+	a->down = 0;
+	a->left = 0;
+	a->right = 0;
+	a->jump = 0;
+	a->attk_a = 0;
+	a->attk_b = 0;
+	a->attk_c = 0;
+	a->we = 0;
+	a->inv = 0;
+	a->key_up = 0;
+	a->key_down = 0;
+	a->key_left = 0;
+	a->key_right = 0;
+	a->key_jump = 0;
+	a->key_attk_a = 0;
+	a->key_attk_b = 0;
+	a->key_attk_c = 0;
+	a->key_we = 0;
+	a->key_inv = 0;
+	a->set=0;
+}
+
+int file_exists(char *fn)
+{
+	#ifdef LINUX
+	if (access(fn, F_OK)!=-1)
+		return 1;
+	#else
+	#endif
+	
+	return 0;
+}
+
+/* read controller settings from file */
+void read_ctlr_from_file(char *fn, controller *a)
+{
+	
+	int i;
+	
+	FILE *fp=0;
+	
+	if (!file_exists(fn))
+	{
+		printf("could not find \"%s\"\n",fn);
+		return;
+	}
+		
+	
+	printf("reading \"%s\"...\n",fn);
+	
+	fp = fopen(fn, "r");
+
+	
+	for (i=0;i<10;i++)
+	{
+		switch(i)
+		{
+		case 0:fscanf(fp, "%d;", &(a->key_up));  break;
+		case 1:fscanf(fp, "%d;", &(a->key_down));  break;
+		case 2:fscanf(fp, "%d;", &(a->key_left));  break;
+		case 3:fscanf(fp, "%d;", &(a->key_right));  break;
+		case 4:fscanf(fp, "%d;", &(a->key_jump));  break;
+		case 5:fscanf(fp, "%d;", &(a->key_attk_a));  break;
+		case 6:fscanf(fp, "%d;", &(a->key_attk_b));  break;
+		case 7:fscanf(fp, "%d;", &(a->key_attk_c));  break;
+		case 8:fscanf(fp, "%d;", &(a->key_we));  break;
+		case 9:fscanf(fp, "%d;", &(a->key_inv));  break;
+		}
+	}
+	
+	a->set=1;
+	
+	fclose(fp);
+	
+}
+
+/* write controller settings to file */
+void write_ctlr_to_file(char *fn, controller *a)
+{
+	
+	int i;
+	
+	FILE *fp=0;
+	
+	fp = fopen(fn, "w");
+	
+	for (i=0;i<10;i++)
+	{
+		switch(i)
+		{
+		case 0:fprintf(fp, "%d;", (a->key_up));  break;
+		case 1:fprintf(fp, "%d;", (a->key_down));  break;
+		case 2:fprintf(fp, "%d;", (a->key_left));  break;
+		case 3:fprintf(fp, "%d;", (a->key_right));  break;
+		case 4:fprintf(fp, "%d;", (a->key_jump));  break;
+		case 5:fprintf(fp, "%d;", (a->key_attk_a));  break;
+		case 6:fprintf(fp, "%d;", (a->key_attk_b));  break;
+		case 7:fprintf(fp, "%d;", (a->key_attk_c));  break;
+		case 8:fprintf(fp, "%d;", (a->key_we));  break;
+		case 9:fprintf(fp, "%d;", (a->key_inv));  break;
+		}
+	}
+	
+	fclose(fp);
+}
+
+int keys_get_first(int a[8])
+{
+	int i;
+	
+	for (i=0;i<8;i++)
+		if (a[i])
+			return a[i];
+			
+	return 0;
+}
+
+int keys_null(int a[8])
+{
+	int i;
+	for (i=0;i<8;i++)
+		if (a[i])
+			return 0;
+	return 1;
+}
+
+void ctlr_update(int a[8], controller *ctlr)
+{
+	int i;
+	
+	ctlr->up=
+	ctlr->down=
+	ctlr->left=
+	ctlr->right=
+	ctlr->jump=
+	ctlr->attk_a=
+	ctlr->attk_b=
+	ctlr->attk_c=
+	ctlr->we=
+	ctlr->inv=0;
+	
+	for (i=0;i<8;i++)
+	{
+		if (a[i] == ctlr->key_up)
+			ctlr->up=1;
+		else if (a[i] == ctlr->key_down)
+			ctlr->down=1;
+		else if (a[i] == ctlr->key_left)
+			ctlr->left=1;
+		else if (a[i] == ctlr->key_right)
+			ctlr->right=1;
+		else if (a[i] == ctlr->key_jump)
+			ctlr->jump=1;
+		else if (a[i] == ctlr->key_attk_a)
+			ctlr->attk_a=1;
+		else if (a[i] == ctlr->key_attk_b)
+			ctlr->attk_b=1;
+		else if (a[i] == ctlr->key_attk_c)
+			ctlr->attk_c=1;
+		else if (a[i] == ctlr->key_we)
+			ctlr->we=1;
+		else if (a[i] == ctlr->key_inv)
+			ctlr->inv=1;
+			
+	}
+}
 
 int main(void)
 {
@@ -749,6 +987,8 @@ int main(void)
 	 * it's only half of it, and there's code below that finishes
 	 * the job. */
 	int ch_jump_ani_table[64] = {3,3,3,2,2,2,1,1,1,0,1,0,1,0,1,0,1,-999};
+	
+	int keys_down[8] = {0,0,0,0,0,0,0,0};
 	
 	SDL_Event e;
 	SDL_Surface  *sprt_shadow, *main_display, *tmpd, *sprt_logo, *sprt_titlescreen, *gfx_hud_health_l;
@@ -768,6 +1008,8 @@ int main(void)
 	SDL_Color font_default = {255,255,255,255};
 	SDL_Color font_outline = {32,32,128,255};
 	TTF_Font *font = 0;
+	
+	controller ctlr_main;
 
 	/* declare stuff for fader mechanism */
 	int fader_md=0, fader_cnt=0, fade_speed=(10);
@@ -775,6 +1017,8 @@ int main(void)
 #define SET_FADE_OUT() {fader_md=2;fader_cnt=0;}
 #define SET_FADE_OFF() {fader_md=0;fader_cnt=0;}
 #define SET_FADE_ON() {fader_md=0;fader_cnt=255;}
+
+	reset_controller(&ctlr_main);
 	
 	pos0.x = pos0.y = 0;
 	
@@ -859,7 +1103,7 @@ int main(void)
 	actors[1].y=-50;
 	actors[1].type=1;
 
-	actors[0].active=1;
+	actors[1].active=1;
 	
 	
 	testcam.target = &actors[0];
@@ -935,13 +1179,13 @@ int main(void)
 			"win",
 			SDL_WINDOWPOS_UNDEFINED,
 			SDL_WINDOWPOS_UNDEFINED,
-			SWIDTH, SHEIGHT,
+			SWIDTH * SMULT, SHEIGHT * SMULT,
 			0
 		);
 	
 	/* get window surface; create framebuffer */
 	main_display = SDL_GetWindowSurface(win);
-	tmpd = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0xff);
+	tmpd = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT,32,0,0,0,0);
 	SDL_SetSurfaceBlendMode(tmpd, SDL_BLENDMODE_BLEND);
 	SDL_SetSurfaceBlendMode(main_display, SDL_BLENDMODE_BLEND);
 	
@@ -966,7 +1210,7 @@ int main(void)
 	sprt_shad.intrv=0;
 	sprt_shad.loop=0;
 	
-	game_mode = MD_LOGO;
+	game_mode = MD_CTLR_CHECK;
 	game_mode_first_loop = 1;
 
 	if(TTF_Init()==-1)
@@ -991,44 +1235,116 @@ int main(void)
 
 	while (run)
 	{
+		
 		while (SDL_PollEvent(&e))
 			switch(e.type)
 			{
 			case SDL_QUIT:
 				run=0;
 				break;
+				
 			case SDL_KEYDOWN:
+				for (i=0;i<8;i++)
+					if (!keys_down[i])
+					{
+						keys_down[i]=e.key.keysym.sym;
+						break;
+					}		
+				
 				switch(e.key.keysym.sym)
-				{
-				case SDLK_UP:k_w=1;break;
-				case SDLK_LEFT:k_a=1;break;
-				case SDLK_DOWN:k_s=1;break;
-				case SDLK_RIGHT:k_d=1;break;
-				case SDLK_SPACE:k_space=1;break;
-				case SDLK_ESCAPE:run=0;break;
-				}
+				{ case SDLK_ESCAPE: run=0;  break; }
 				break;
+				
 			case SDL_KEYUP:
-				switch(e.key.keysym.sym)
-				{
-				case SDLK_UP:k_w=0;break;
-				case SDLK_LEFT:k_a=0;break;
-				case SDLK_DOWN:k_s=0;break;
-				case SDLK_RIGHT:k_d=0;break;
-				case SDLK_SPACE:k_space=0;break;
-				}
+				for (i=0;i<8;i++)
+					if (keys_down[i] == e.key.keysym.sym)
+						keys_down[i]=0;
+						
 				break;
+				
 			}
+		
+		ctlr_update(keys_down, &ctlr_main);
+		
 		
 		switch(game_mode)
 		{
+		case MD_CTLR_CHECK:
+			read_ctlr_from_file("controls.cfg", &ctlr_main);
+			
+			if (ctlr_main.set)
+				game_mode = MD_LOGO;
+			else
+				game_mode = MD_SET_CONTROLS;
+			
+			cntr_c=0;
+			
+				
+			break;
+		case MD_SET_CONTROLS:
+			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, 255 ) );
+			render_text(tmpd,&font_default,&font_outline,font,"Control Setup", 10,10);
+
+			#define MD_SET_CONTROLS_CHECK(a,b) \
+					render_text(tmpd,&font_default,&font_outline,font,a, (SWIDTH/2)-20,SHEIGHT/2); \
+					i=keys_get_first(keys_down); \
+					if (i) \
+					{ \
+						ctlr_main.b = i; \
+						cntr_c++; \
+					}
+			
+			#define MD_SET_CONTROLS_NEXT() \
+					if (keys_null(keys_down)) \
+						cntr_c++;
+			
+			switch(cntr_c)
+			{
+			case 0:  MD_SET_CONTROLS_CHECK("Press key for UP",key_up);break;
+			case 1:  MD_SET_CONTROLS_NEXT();  break;
+			case 2:  MD_SET_CONTROLS_CHECK("Press key for DOWN",key_down);  break;
+			case 3:  MD_SET_CONTROLS_NEXT();  break;
+			case 4:  MD_SET_CONTROLS_CHECK("Press key for LEFT",key_left);  break;
+			case 5:  MD_SET_CONTROLS_NEXT();  break;
+			case 6:  MD_SET_CONTROLS_CHECK("Press key for RIGHT",key_right);  break;
+			case 7:  MD_SET_CONTROLS_NEXT();  break;
+			case 8:  MD_SET_CONTROLS_CHECK("Press key for JUMP",key_jump);  break;
+			case 9:  MD_SET_CONTROLS_NEXT();  break;
+			case 10:  MD_SET_CONTROLS_CHECK("Press key for ATTACK A",key_attk_a);  break;
+			case 11:  MD_SET_CONTROLS_NEXT();  break;
+			case 12:  MD_SET_CONTROLS_CHECK("Press key for ATTACK B",key_attk_b);  break;
+			case 13:  MD_SET_CONTROLS_NEXT();  break;
+			case 14:  MD_SET_CONTROLS_CHECK("Press key for ATTACK C",key_attk_c);  break;
+			case 15:  MD_SET_CONTROLS_NEXT();  break;
+			case 16:  MD_SET_CONTROLS_CHECK("Press key for WEAPON SELECT",key_we);  break;
+			case 17:  MD_SET_CONTROLS_NEXT();  break;
+			case 18:  MD_SET_CONTROLS_CHECK("Press key for START",key_inv);  break;
+			case 19:  MD_SET_CONTROLS_NEXT();  break;
+			case 20:
+				render_text(tmpd,&font_default,&font_outline,font,"Saving controller settings ...", (SWIDTH/2)-20,SHEIGHT/2);
+				cntr_c++;
+				break;
+			case 21:
+				write_ctlr_to_file("controls.cfg", &ctlr_main);
+				cntr_c++;
+				break;
+			case 22:
+				render_text(tmpd,&font_default,&font_outline,font,"Saving controller settings ... OK", (SWIDTH/2)-20,SHEIGHT/2);
+				cntr_c++;
+				game_mode=MD_LOGO;
+				break;
+			}
+			
+			
+			
+			break;
 		case MD_LOGO:
 			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, 255 ) );
 			pos.x = (SWIDTH/2) - (sprt_logo->w / 2);
 			pos.y = (SHEIGHT/2) - (sprt_logo->h / 2);
 			SDL_BlitSurface(sprt_logo,0 , tmpd, &pos);
 			
-			if (k_space && cntr_a>0 && cntr_a < FPS)
+			if (ctlr_main.inv && cntr_a>0 && cntr_a < FPS)
 				cntr_a=FPS-1;
 
 			if (fader_cnt==0 && cntr_a==0)
@@ -1110,7 +1426,16 @@ int main(void)
 			if (test_ani->done && cntr_c==1)
 				cntr_c=2;
 			
-			if (cntr_c==2 && k_space)
+			if (cntr_c==2)
+			{
+				if (((++cntr_b) % (FPS)) < (FPS/2))
+					render_text_centered_noalpha(tmpd,&font_default,&font_outline,font,"Press Start", (SWIDTH/2),SHEIGHT-40);
+				else
+					render_text_centered_noalpha(tmpd,&font_default,&font_outline,font,"           ", (SWIDTH/2),SHEIGHT-40);
+					
+			}
+			
+			if (cntr_c==2 && ctlr_main.inv)
 			{
 				SET_FADE_OUT();
 				
@@ -1146,32 +1471,32 @@ int main(void)
 				/* processing for wasd-controlled actor */
 				if (&actors[i] == key_wasd_cont && cntr_c <= 0)
 				{
-					if (k_w)
+					if (ctlr_main.up)
 					{
 						key_wasd_cont->md = CH_WALK;
 						key_wasd_cont->dy = 1;
 						key_wasd_cont->dir = DIR_UP;
 					}
-					if (k_a)
+					if (ctlr_main.left)
 					{
 						key_wasd_cont->md = CH_WALK;
 						key_wasd_cont->dx = -1;
 						key_wasd_cont->dir = DIR_LEFT;
 					}
-					if (k_s)
+					if (ctlr_main.down)
 					{
 						key_wasd_cont->dy = -1;
 						key_wasd_cont->md = CH_WALK;
 						key_wasd_cont->dir = DIR_DOWN;
 					}
-					if (k_d)
+					if (ctlr_main.right)
 					{
 						key_wasd_cont->dx = 1;
 						key_wasd_cont->md = CH_WALK;
 						key_wasd_cont->dir = DIR_RIGHT;
 					}
 					
-					if ((k_w && k_s) || (k_a && k_d))
+					if ((ctlr_main.up && ctlr_main.down) || (ctlr_main.left && ctlr_main.right))
 					{
 						key_wasd_cont->dx = key_wasd_cont->dy = 0;
 						key_wasd_cont->md = CH_STAND;
@@ -1179,11 +1504,11 @@ int main(void)
 						
 					
 
-					if (k_space && key_wasd_cont->jump==0)
+					if (ctlr_main.jump && key_wasd_cont->jump==0)
 						key_wasd_cont->jump=1;
 					
 					/* if space is held and character has already jumped, do not allow jump. */
-					if (!k_space && key_wasd_cont->jump==-1)
+					if (!ctlr_main.jump && key_wasd_cont->jump==-1)
 						key_wasd_cont->jump=0;
 
 					if (key_wasd_cont->jump > 0)
@@ -1297,7 +1622,9 @@ int main(void)
 
 		SDL_FillRect( main_display, 0, SDL_MapRGBA( main_display->format, 0, 0, 0, 255 ) );
 		
-		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
+		SDL_BlitScaled(tmpd,0,main_display,0);
+		
+		/*SDL_BlitSurface(tmpd,0 , main_display, &pos0);*/
 
 		SDL_UpdateWindowSurface(win);
 		
