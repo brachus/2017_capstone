@@ -1,5 +1,5 @@
 
-typedef struct
+typedef struct main_state
 {
 	
 	int game_md;
@@ -17,24 +17,63 @@ typedef struct
 	
 } main_state;
 
+typedef struct xyz
+{
+	int x;
+	int y;
+	int z;
+} xyz;
 
-typedef struct
+typedef struct sprite
 {
 	int cx;
 	int cy;
 	
 	int transp;
 	
-	int frame_cnt;
-	int frame_cur;
-	char *fn_arr[256];
+	int frames;
 	SDL_Surface **sprt_arr;
 	int intrv;
 	int loop;
-	int cnt0;
 	
-	int active;
+	char name[32];
+	
+	
+	/* attack/defend frames:  used as a way to express a region of attack for
+	 * sprites used in character attack/defend animations.
+	 * characters with their bounding box intersecting an attack frame's
+	 * bounding box would be considered 'hurt'.
+	 * the degree of being hurt, type of hurt, etc. will be determined by
+	 * checking the parent character and its current mode, attack, defense, etc.  */
+	
+	int attk_frame_start;/* span of attack frame start.  0 >=.  time span includes start end values. */
+	int attk_frame_end;
+	int attk_frame_bbox_x; /* relative to center xy */
+	int attk_frame_bbox_y;
+	int attk_frame_bbox_w;
+	int attk_frame_bbox_h;
+	int attk_frame_bbox_z;
+	
+	int dfnd_frame_start;/* span of defend frame start.  0 >=.  time span includes start end values. */
+	int dfnd_frame_end;
+	int dfnd_frame_bbox_x; /* relative to center xy */
+	int dfnd_frame_bbox_y;
+	int dfnd_frame_bbox_w;
+	int dfnd_frame_bbox_h;
+	int dfnd_frame_bbox_z;
+	
+	xyz *drift; /* sprite may animate parent character*/
 } sprite;
+
+/* used for actual sprite instances. */
+typedef struct sprite_active
+{
+	sprite *base;
+	int active;
+	int done;
+	int cntr;
+	int cur;
+} sprite_active;
 
 typedef struct actor
 {
@@ -134,11 +173,14 @@ typedef struct cam
 	int bx1; /* bottom-right in world coordinates */
 	int by1;
 	
-	actor *target; /* if not null, override x,y and focus target as center. */
+	struct chara_active *target; /* if not null, override x,y and focus target as center. */
 } cam;
 
 typedef struct tilemap
 {
+	int x;/*x,y in global coords */
+	int y;
+	
 	int w;
 	int h;
 	int ntiles;
@@ -202,14 +244,122 @@ typedef struct controller
 	
 } controller;
 
+typedef struct alignment
+{
+	int earth;
+	int water;
+	int wind;
+	int fire;
+	int light;
+	int dark;
+	
+} alignment;
+
+typedef struct sprite_lib_node
+{
+	sprite *dat;
+	struct sprite_lib_node *next;
+	
+} sprite_lib_node;
+
+typedef struct sprite_lib
+{
+	int cnt;
+	sprite_lib_node *head;
+	
+} sprite_lib;
+
+typedef struct chara_template
+{
+	sprite **gfx;
+	int gfx_cnt; /* number of sprites character has. */
+	
+	int max_hp;
+	int max_mp;
+	
+	int attack;
+	int defend;
+	
+	int bbox_w;
+	int bbox_h;
+	int bbox_z; /* actual height, with bbox_w+h as a base. */
+	
+	int type;
+	
+} chara_template;
+
+typedef struct chara_active
+{
+	alignment algnmt;
+	chara_template *base;
+	sprite_active **gfx;  /* sprite instances  */
+	
+	/* includes action/variation of an action, including walking/running
+	 * in a particular direction, falling back from being hit, attacking
+	 * with specific weapon, etc.
+	 */
+	int md;
+	
+	int max_hp;
+	int max_mp;
+	
+	int hp;
+	int mp;
+	
+	int attack;
+	int defend;
+	
+	int lvl;
+	
+	xyz pos;
+	
+	xyz dpos;
+	
+} chara_active;
+
+/* item roster; keeps track of items, grabbable or in inventory, */
 typedef struct item
 {
 	int type;
 	struct item *next;
+	
+	int in_world; /* if 1, item is viewed as a grabbable "in-world" item. */
+	
 } item;
 
 typedef struct inventory
 {
 	item *store;
+	int cnt;
 	
 } inventory;
+
+typedef struct rexit
+{
+	int idx;
+	struct room *dst; /* this eventually replaces idx as game data is processed. */
+	xyz *loc; /* in global coords */
+	
+} rexit;
+
+typedef struct room
+{
+	tilemap *main;
+	
+	tilemap *mult; /* use to tint sprites in specific locals around room, e.g. dark cave with spotty lighting. */
+	
+	/* exits */
+	rexit *exits;
+	int nexits;
+	
+	/* items */
+	item *items;
+	int nitems;
+	
+	/* npc's */
+} room;
+
+typedef struct world
+{
+	room **rooms;
+} world;
