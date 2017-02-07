@@ -185,6 +185,8 @@ typedef struct tilemap
 	int h;
 	int ntiles;
 	int **arr; /* [row] [column]*/
+	
+	int *tile_block; /* corresponds to tiles.  0=no_block, 1=block */
 	SDL_Surface **tiles;
 } tilemap;
 
@@ -311,6 +313,10 @@ typedef struct chara_active
 	
 	int lvl;
 	
+	int invisi_cntr; /* for flicker+invisible effect after damage. */
+	
+	struct room *inroom;
+	
 	xyz pos;
 	
 	xyz dpos;
@@ -322,6 +328,10 @@ typedef struct item
 {
 	int type;
 	struct item *next;
+	
+	sprite_active *sprt;
+	
+	int flash_cntr; /* for glint effect */
 	
 	int in_world; /* if 1, item is viewed as a grabbable "in-world" item. */
 	
@@ -354,7 +364,10 @@ typedef struct room
 	
 	/* items */
 	item *items;
-	int nitems;
+	int extra_nitems;
+	
+	item *items;
+	int extra_nitems;
 	
 	/* npc's */
 } room;

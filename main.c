@@ -665,7 +665,6 @@ void reset_actor(actor *in)
 		in->gfx_jump[i] = 0;
 		in->gfx_run[i] = 0;
 	}
-	
 }
 
 void reset_cam(cam *in)
@@ -706,12 +705,15 @@ tilemap * new_tilemap()
 		n->arr[i] = (int*) malloc(sizeof(int) * n->w);
 	
 	n->tiles = (SDL_Surface **) malloc(sizeof(SDL_Surface *) * n->ntiles);
+	for (i=0;i<n->ntiles;i++)
+		n->tiles[i] = 0;
+	
+	n->tile_block = (int*) malloc(sizeof(int) * n->ntiles);
+	for (i=0;i<n->ntiles;i++)
+		n->tile_block[i] = 0;
 	
 	return n;
-		
 };
-
-
 
 void clear_render_sprites(render_sprite_head *in)
 {
@@ -1833,7 +1835,6 @@ int main(void)
 				u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
 				u 2;u 3;n");
 
-				
 				cntr_c=0;
 				
 				ani_frame(test_ani, tmpd);
@@ -2009,7 +2010,6 @@ int main(void)
 					}
 						
 					break;
-					
 				}
 				
 				/* processing for wasd-controlled actor 

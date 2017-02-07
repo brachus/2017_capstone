@@ -1,0 +1,111 @@
+Entities:
+
+Character Template:
+	Starting power points (hp/mp/etc.)
+	Metrics
+	graphics (Sprite)
+	hud graphic (also Sprite.  e.g. face that appears in dialog/near health bar?)
+	ID
+
+Character Instance:
+	Alignment
+	Current power stats (base on starting stats)
+	Mode / misc. state variables
+	Position
+	Current room (pointer)
+
+Room:
+	Tilemap for scenery
+	Tilemap for lighting
+
+	Items to add (differs based on difficulty)
+	NPCs to add (same)
+	
+	Exits
+
+	Top-left corner world coordinates position.
+
+
+Tile Map:
+	Tiles - actual graphics
+	Blockers - used to limit character movement.  e.g. walls.
+
+
+Sprite Template:
+	graphics
+	# frames
+	interval - time in passed frames a frame changes
+	loop - loops?
+
+
+Sprite Instance:
+	current frame
+	frame counter
+	done?
+
+
+Item Template:
+	item graphic
+	item id
+
+
+Item Instance:
+	In world? or in inventory?
+
+
+Inventory:
+	item[6]
+	
+
+
+
+Control Flow:
+
+-Load data file.
+-Parse out Characters, Rooms, Tilemaps, Sprites, Items,  Odds and ends.
+-Create controller structure, which will keep track of mapping, currently pressed keys, etc.
+-Set game mode to "check controls"
+-Start main loop:
+-  Take in input.  translate it to a controller structure.
+-  Depending on game mode, follow through appropriate processing for given frame, using loaded data, mode/state variables for keeping track of things.
+-  If main mode:
+	Process each character currently active in roster, step animations, actions, movements, etc.
+	Add sprites in their current states to a render list
+	Render sprites in order to main surface.
+-  Update window
+-  Wait until next frame
+
+-Free everything.
+-Exit.
+
+
+
+
+Game play:
+
+Character spawns at starting point.
+
+Character may move around.
+
+Player can press attack button to execute strike based on selected weapon.
+
+Player can press jump to leap in air, or dodge if directional is pressed.
+
+NPCs (only NPCs for now) may be attacked.
+
+If player is attacked, 2 sec. of invicibility is triggered.
+
+If NPC is defeated, an item may appear in its place after it's dissapeared.  Exp points added to.
+
+Message is triggered with earned exp points, picked up items, level ups, etc.
+
+Emphasis should be put on strong, difficult enemies, with specific attack/evade patterns.
+
+In general, game play overall needs to be simple, responsive, tactile.  Needs to require skill.
+
+
+Playable Character types: knight, mage, elf, ogre.
+
+NPCs, includes Playable types, + elemental types, large monsters, 
+
+
