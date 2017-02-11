@@ -24,6 +24,19 @@ typedef struct xyz
 	int z;
 } xyz;
 
+typedef struct action_frame
+{
+	int cntr; /* frames left */
+	int id;/* for intances */
+	int x; /* global coords. */
+	int y;
+	int w;
+	int h;
+	int z;
+	
+	struct action_frame *next;
+};
+
 typedef struct sprite
 {
 	int cx;
@@ -38,31 +51,26 @@ typedef struct sprite
 	
 	char name[32];
 	
-	
 	/* attack/defend frames:  used as a way to express a region of attack for
 	 * sprites used in character attack/defend animations.
 	 * characters with their bounding box intersecting an attack frame's
 	 * bounding box would be considered 'hurt'.
 	 * the degree of being hurt, type of hurt, etc. will be determined by
-	 * checking the parent character and its current mode, attack, defense, etc.  */
+	 * checking the parent character and its current mode, attack, defense, etc.
+	 */
 	
-	int attk_frame_start;/* span of attack frame start.  0 >=.  time span includes start end values. */
-	int attk_frame_end;
-	int attk_frame_bbox_x; /* relative to center xy */
-	int attk_frame_bbox_y;
-	int attk_frame_bbox_w;
-	int attk_frame_bbox_h;
-	int attk_frame_bbox_z;
+	/* span of attack frame start.  0 >=.  time span includes start end values. */
+	int attk_frame_start;
+	action_frame attk_frame; /* relative to center xy */
 	
-	int dfnd_frame_start;/* span of defend frame start.  0 >=.  time span includes start end values. */
-	int dfnd_frame_end;
-	int dfnd_frame_bbox_x; /* relative to center xy */
-	int dfnd_frame_bbox_y;
-	int dfnd_frame_bbox_w;
-	int dfnd_frame_bbox_h;
-	int dfnd_frame_bbox_z;
+	/* span of defend frame start.  0 >=.  time span includes start end values. */
+	int dfnd_frame_start;
+	action_frame dfnd_frame; /* relative to center xy */
 	
 	xyz *drift; /* sprite may animate parent character*/
+	
+	struct sprite *next;
+	
 } sprite;
 
 /* used for actual sprite instances. */
@@ -160,7 +168,6 @@ typedef struct ani
 	
 } ani;
 
-
 typedef struct cam
 {
 	int x; /* x,y are the 'center' of the camera. */
@@ -235,7 +242,7 @@ typedef struct controller
 	int key_down;
 	int key_left;
 	int key_right;
-	int key_jump;
+	int key_jump; 
 	int key_attk_a;
 	int key_attk_b;
 	int key_attk_c;
@@ -276,6 +283,8 @@ typedef struct chara_template
 	sprite **gfx;
 	int gfx_cnt; /* number of sprites character has. */
 	
+	char name[32];
+	
 	int max_hp;
 	int max_mp;
 	
@@ -287,6 +296,8 @@ typedef struct chara_template
 	int bbox_z; /* actual height, with bbox_w+h as a base. */
 	
 	int type;
+	
+	struct chara_template *next;
 	
 } chara_template;
 
@@ -302,6 +313,9 @@ typedef struct chara_active
 	 */
 	int md;
 	
+	/* this is stepped along a static var in chara_active. */
+	int id;
+	
 	int max_hp;
 	int max_mp;
 	
@@ -313,13 +327,22 @@ typedef struct chara_active
 	
 	int lvl;
 	
-	int invisi_cntr; /* for flicker+invisible effect after damage. */
-	
-	struct room *inroom;
-	
 	xyz pos;
-	
 	xyz dpos;
+	
+	int invisi_cntr; /* for flicker+invisible effect after damage. */
+	int clips;
+	
+	int effect_cntr; /* for glint effect */
+	int effect_type;
+	
+	int in_world;
+	
+	struct room *in_room;
+	
+	
+	
+	struct chara_active *next;
 	
 } chara_active;
 
@@ -355,24 +378,44 @@ typedef struct rexit
 typedef struct room
 {
 	tilemap *main;
-	
-	tilemap *mult; /* use to tint sprites in specific locals around room, e.g. dark cave with spotty lighting. */
+	tilemap *mult;
+	/* use to tint sprites in
+	 * specific locals around
+	 * room, e.g. dark cave
+	 * with spotty lighting.
+	 */
 	
 	/* exits */
 	rexit *exits;
 	int nexits;
 	
 	/* items */
-	item *items;
-	int extra_nitems;
+	/*item *items;
+	int nitems;
 	
-	item *items;
-	int extra_nitems;
+	item *extra_items;
+	int extra_nitems;*/
 	
-	/* npc's */
+	chara_template **chara_place;
+	int nchara;
+	
+	int bgm_id;
+	
+	struct room *next;
 } room;
 
 typedef struct world
 {
-	room **rooms;
+	room *rooms;
+	
+	chara_template *chara_temps;
+	
+	sprite *sprites;
+		
+	/* all currently active attack/defend frames.
+	 * these are ticked and eventuall deleted when counter reaches 0.
+	 */
+	action_frame *attk_frames;
+	action_frame *dfnd_frames;
+	
 } world;

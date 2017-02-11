@@ -1,8 +1,16 @@
 
 
-- Integrate room structure into main loop.
+- Integrate room structure into main loop:
+		have all active characters be declared so from room structs.
+		
+		before battle mode:
+			which room?
+			which difficulty? 
+		
 -  + Exits;  implement transitions into loop.
 	Exits can specify specific transition (e.g. fall effect, fade effect. )
+
+-  O: Refactor; clean up names for world + rid sprite_lib.
 
 - Implement loading tilemaps from Tiled JSON structures.
 

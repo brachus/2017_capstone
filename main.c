@@ -113,8 +113,9 @@ void tick_frame(int fps)
 
 sprite *new_sprite(char *script)
 {
-	int i, j, buf_tmp,arg_idx,ln, is_int[8],nargs;
+	int j;
 	
+	int buf_tmp, arg_idx, is_int[8], nargs, ln, i;
 	char buf[8][256];
 	
 	sprite *n=(sprite *) malloc(sizeof(sprite));
@@ -133,18 +134,29 @@ sprite *new_sprite(char *script)
 	
 	n->name[0]='\0';
 	
-	n->attk_frame_start=0; /* span of attack frame start.  0 >=.  time span includes start end values. */
-	n->attk_frame_end=0;
-	n->attk_frame_bbox_w=0;
-	n->attk_frame_bbox_h=0;
-	n->attk_frame_bbox_z=0;
-	n->dfnd_frame_start; /* span of defend frame start.  0 >=.  time span includes start end values. */
-	n->dfnd_frame_end=0;
-	n->dfnd_frame_bbox_w=0;
-	n->dfnd_frame_bbox_h=0;
-	n->dfnd_frame_bbox_z=0;
+	n->attk_frame_start=0;
+	n->attk_frame.cntr=0;
+	n->attk_frame.id=0;
+	n->attk_frame.next=0;
+	n->attk_frame.x=0;
+	n->attk_frame.y=0;
+	n->attk_frame.w=0;
+	n->attk_frame.h=0;
+	n->attk_frame.z=0;
+	
+	n->dfnd_frame_start;
+	n->dfnd_frame.cntr=0;
+	n->dfnd_frame.id=0;
+	n->dfnd_frame.next=0;
+	n->dfnd_frame.x=0;
+	n->dfnd_frame.y=0;
+	n->dfnd_frame.w=0;
+	n->dfnd_frame.h=0;
+	n->dfnd_frame.z=0;
 	
 	n->drift=0; /* sprite may animate parent character*/
+	
+	n->next=0;
 	
 	
 	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0] = '\0';
@@ -266,11 +278,8 @@ sprite *new_sprite(char *script)
 			else if (!strcmp(buf[0], "transp") && nargs==2 && is_int[0]==0 && is_int[1])
 				n->transp=atoi(buf[1]);
 				
-			else if (!strcmp(buf[0], "name") && nargs==2 && is_int[0]==0 && is_int[1]==0)
-			{
-				if (strlen(buf[1]) < 31)
-					strcpy(n->name, buf[1]);
-			}
+			else if (!strcmp(buf[0], "name") && nargs==2 && is_int[0]==0 && is_int[1]==0 && strlen(buf[1]) < 31)
+				strcpy(n->name, buf[1]);
 			
 			else if (!strcmp(buf[0], "intrv") && nargs==2 && is_int[0]==0 && is_int[1])
 				n->intrv=atoi(buf[1]);
@@ -278,8 +287,8 @@ sprite *new_sprite(char *script)
 			else if (!strcmp(buf[0], "attk_frame_start") && nargs==2 && is_int[0]==0 && is_int[1])
 				n->attk_frame_start=atoi(buf[1]);
 				
-			else if (!strcmp(buf[0], "attk_frame_end") && nargs==2 && is_int[0]==0 && is_int[1])
-				n->attk_frame_end=atoi(buf[1]);
+			else if (!strcmp(buf[0], "attk_frame_len") && nargs==2 && is_int[0]==0 && is_int[1]) /* set attack frame counter */
+				n->attk_frame.cntr=atoi(buf[1]);
 				
 			else if (!strcmp(buf[0], "attk_frame_bbox") &&
 					nargs==6 &&
@@ -290,12 +299,11 @@ sprite *new_sprite(char *script)
 					is_int[4] &&
 					is_int[5]) /*attk_frame_bbox <h> <w> <z>;*/
 			{
-				n->attk_frame_bbox_x=atoi(buf[1]);
-				n->attk_frame_bbox_y=atoi(buf[2]);
-				
-				n->attk_frame_bbox_h=atoi(buf[3]);
-				n->attk_frame_bbox_w=atoi(buf[4]);
-				n->attk_frame_bbox_z=atoi(buf[5]);
+				n->attk_frame.x=atoi(buf[1]);
+				n->attk_frame.y=atoi(buf[2]);
+				n->attk_frame.h=atoi(buf[3]);
+				n->attk_frame.w=atoi(buf[4]);
+				n->attk_frame.z=atoi(buf[5]);
 			}
 				
 			else if (!strcmp(buf[0], "dfnd_frame_start") &&
@@ -304,7 +312,7 @@ sprite *new_sprite(char *script)
 					is_int[1])
 				n->dfnd_frame_start=atoi(buf[1]);
 				
-			else if (!strcmp(buf[0], "dfnd_frame_end") &&
+			else if (!strcmp(buf[0], "dfnd_frame_len") &&
 					nargs==2 &&
 					is_int[0]==0 &&
 					is_int[1])
@@ -319,18 +327,15 @@ sprite *new_sprite(char *script)
 					is_int[4] &&
 					is_int[5]) /* dfnd_frame_bbox <h> <w> <z>;*/
 			{
-				n->dfnd_frame_bbox_x=atoi(buf[1]);
-				n->dfnd_frame_bbox_y=atoi(buf[2]);
-				
-				n->dfnd_frame_bbox_h=atoi(buf[3]);
-				n->dfnd_frame_bbox_w=atoi(buf[4]);
-				n->dfnd_frame_bbox_z=atoi(buf[5]);
+				n->dfnd_frame.x=atoi(buf[1]);
+				n->dfnd_frame.y=atoi(buf[2]);
+				n->dfnd_frame.h=atoi(buf[3]);
+				n->dfnd_frame.w=atoi(buf[4]);
+				n->dfnd_frame.z=atoi(buf[5]);
 			}
 			
 			is_int[0]=is_int[1]=is_int[2]=is_int[3]=is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
-			
-			arg_idx=0;
-			buf_tmp=0;
+			arg_idx=buf_tmp=0;
 		}
 		else
 		{
@@ -344,9 +349,8 @@ sprite *new_sprite(char *script)
 			
 			buf[arg_idx][buf_tmp] = '\0';
 			
-			nargs = arg_idx+1;
+			nargs = arg_idx + 1;
 		}
-		
 		i++;
 	}
 	
@@ -355,51 +359,39 @@ sprite *new_sprite(char *script)
 	return n;
 }
 
-
-sprite_lib_node *new_sprite_lib_node(char *sprt)
-{
-	sprite_lib_node *n =
-		(sprite_lib_node *) malloc(sizeof(sprite_lib_node));
-	n->dat = new_sprite(sprt);
-	n->next=0;
+void sprite_add(world *in_world, char *sprt)
+{	
+	sprite *a = in_world->sprites;
 	
-	return n;
-}
-
-void sprite_lib_add(sprite_lib *a, char *sprt)
-{
-	sprite_lib_node *tmp;
-	
-	if (!(a->head))
+	if (!a)
 	{
-		a->head = new_sprite_lib_node(sprt);
+		in_world->sprites = new_sprite(sprt);
 		return;
 	}
 	
-	tmp=a->head;
-	while(tmp)
+	while(a)
 	{
-		if (!(tmp->next))
+		if (!(a->next))
 		{
-			tmp->next = new_sprite_lib_node(sprt);
+			a->next = new_sprite(sprt);
 			break;
 		}
-		tmp=tmp->next;
+		a=a->next;
 	}
 }
 
-sprite *sprite_lib_get_sprite(sprite_lib *a, char *name)
+sprite *get_sprite(world *in_world, char *name)
 {
-	sprite_lib_node *tmp = a->head;
+	sprite *a = in_world->sprites;
 	
-	while (tmp)
+	while (a)
 	{
-		if (!strcmp(tmp->dat->name, name))
-			return tmp->dat;
-		tmp=tmp->next;
+		if (!strcmp(a->name, name))
+			break;
+		a=a->next;
 	}
 	
-	return 0;
+	return a;
 }
 
 ani_cmd *new_ani_cmd()
@@ -735,7 +727,7 @@ void clear_render_sprites(render_sprite_head *in)
 
 
 
-chara_template *new_chara_template(sprite_lib *sl, char *script)
+chara_template *new_chara_template(world *in_world, char *script)
 {
 	int i, j, buf_tmp,arg_idx,ln, is_int[8],nargs;
 	char buf[8][256];
@@ -757,19 +749,18 @@ chara_template *new_chara_template(sprite_lib *sl, char *script)
 	
 	n->type=0;
 	
-	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0] = '\0';
-	buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0] = '\0';
+	n->next=0;
 	
-	is_int[0]=is_int[1]=is_int[2]=is_int[3]=1;
-	is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0]=
+		buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0]='\0';
 	
-	buf_tmp=0;
-	arg_idx=0;
+	is_int[0]=is_int[1]=is_int[2]=is_int[3]=
+		is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+	
 	ln=strlen(script);
 	
-	nargs=0;
+	buf_tmp=arg_idx=nargs=i=0;
 	
-	i=0;
 	while (i<ln)
 	{
 		if (script[i] == ' ' || script[i] == '\n' || script[i] == '\t')
@@ -816,13 +807,18 @@ chara_template *new_chara_template(sprite_lib *sl, char *script)
 				
 			else if (	!strcmp(buf[0], "gfx") && nargs==3 &&
 					is_int[0]==0 && is_int[1] && is_int[2]==0 && n->gfx_cnt>0)
-				n->gfx[atoi(buf[1])] = sprite_lib_get_sprite(sl, buf[2]);
+				n->gfx[atoi(buf[1])] = get_sprite(in_world, buf[2]);
 			
-			is_int[0]=is_int[1]=is_int[2]=is_int[3]=1;
-			is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+			else if (!strcmp(buf[0], "name") &&
+					nargs==2 &&
+					is_int[0]==0 &&
+					is_int[1]==0 &&
+					strlen(buf[1]) < 31)
+				strcpy(n->name, buf[1]);
 			
-			arg_idx=0;
-			buf_tmp=0;
+			is_int[0]=is_int[1]=is_int[2]=is_int[3]=is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+			
+			arg_idx=buf_tmp=0;
 		}
 		else
 		{
@@ -844,8 +840,6 @@ chara_template *new_chara_template(sprite_lib *sl, char *script)
 	return n;
 }
 
-
-
 sprite_active *new_sprite_active(sprite *a)
 {
 	sprite_active *n = (sprite_active*) malloc(sizeof(sprite_active));
@@ -861,7 +855,9 @@ sprite_active *new_sprite_active(sprite *a)
 
 chara_active *new_chara_active(chara_template *a)
 {
+	static int id_step = 0;
 	int i;
+	
 	chara_active *n = (chara_active*) malloc(sizeof(chara_active));
 	
 	n->algnmt.earth=n->algnmt.fire=n->algnmt.wind=
@@ -889,6 +885,20 @@ chara_active *new_chara_active(chara_template *a)
 	
 	n->pos.x=n->pos.y=n->pos.z=0;
 	n->dpos.x=n->dpos.y=n->dpos.z=0;
+	
+	n->invisi_cntr=1;
+	n->clips=1;
+	
+	n->effect_cntr=0; /* for glint effect */
+	n->effect_type=0;
+	
+	n->in_world=1;
+	
+	n->in_room=0;
+	
+	n->id = id_step++;
+	
+	n->next=0;
 	
 	return n;
 }
@@ -1451,11 +1461,65 @@ void apply_dpos_chara_sprite_active(chara_active *a, sprite_active *b)
 	a->dpos.x = b->base->drift[rframe].x;
 	a->dpos.y = b->base->drift[rframe].y;
 	a->dpos.z = b->base->drift[rframe].z;
-	
-	
-	
 }
 
+
+world * new_world()
+{
+	world *n = (world *) malloc(sizeof(world));
+	
+	n->rooms = 0;
+	n->chara_temps = 0;
+	n->sprites = 0;
+	
+	return n;
+}
+
+void world_add(world *in_world, char* script)
+{
+	return;
+}
+
+
+void chara_template_add(world *in_world, char* script)
+{
+	chara_template *tmp=in_world->chara_temps;
+	
+	if (!tmp)
+	{
+		in_world->chara_temps = new_chara_template(in_world, script);
+		return;
+	}
+	
+	while (tmp)
+	{
+		if (!tmp->next)
+		{
+			tmp->next = new_chara_template(in_world, script);
+			break;
+		}
+		
+		tmp = tmp->next;
+	}
+		
+	
+	return;
+}
+
+void get_chara_template(world *in_world, char* name)
+{
+	chara_template *tmp = in_world->chara_temps;
+	
+	while (tmp)
+	{
+		if (!strcmp(name, tmp->name))
+			break;
+		tmp = tmp->next;
+	}
+	
+	return tmp;
+	
+}
 
 int main(void)
 {
@@ -1475,11 +1539,11 @@ int main(void)
 	int keys_down[8] = {0,0,0,0,0,0,0,0};
 	
 	SDL_Event e;
-	SDL_Surface  *sprt_shadow, *main_display, *tmpd;
+	SDL_Surface *main_display, *tmpd;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
 	SDL_Rect 	pos0;
-	sprite *apple,  *sprt_shad, *sprt_logo;
+	sprite  *sprt_shad, *sprt_logo;
 	render_sprite_head rstest;
 	tilemap * tmaptest;
 	chara_active *actors[64], *key_wasd_cont;
@@ -1487,9 +1551,8 @@ int main(void)
 	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar, *sprt_lhud;
 	float ch0_health=1.0;
 	ani *test_ani;
-	sprite_lib sprt_lib;
 	controller ctlr_main;
-	chara_template *ch_ch0, *ch_jar, *ch_item_test;
+	world test_world;
 	
 	/* setup font */
 	SDL_Color font_default = {255,255,255,255};
@@ -1505,9 +1568,7 @@ int main(void)
 	#define SET_FADE_ON() {fader_md=0;fader_cnt=255;}
 
 	reset_controller(&ctlr_main);
-	
-	sprt_lib.head=0; sprt_lib.cnt=0;
-	
+		
 	pos0.x = pos0.y = 0;
 	
 	tmaptest = new_tilemap();
@@ -1536,7 +1597,6 @@ int main(void)
 		}
 	}
 	
-	
 	tmaptest->tiles[0] = IMG_Load("w0_t0.png");
 	tmaptest->tiles[1] = IMG_Load("w0_t1.png");
 	tmaptest->tiles[2] = IMG_Load("w0_t2.png");
@@ -1545,24 +1605,28 @@ int main(void)
 	tilemap_box_modify(tmaptest, 2,0,8,0,  2);
 	tilemap_box_modify(tmaptest, 2,1,8,1,  3);
 	tilemap_box_modify(tmaptest, 2,2,8,8,  1);
-	tilemap_box_modify(tmaptest, 9,5,14,8,  1);
-
+	tilemap_box_modify(tmaptest, 9,5,14,8, 1);
+	
+	world_add(test_world, "room main main.json light.json 0 0;");
+	world_add(test_world, "item test_item 0;");
+	world_add(test_world, "item_place test_item main 100 100;");
+	world_add(test_world, "item_place test_item main 100 200;");
+	world_add(test_world, "exit test_item main 100 300 fade;");
 	
 	/* load sprites */
-	sprite_lib_add(&sprt_lib,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
-	sprite_lib_add(&sprt_lib,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
-	sprite_lib_add(&sprt_lib,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
+	sprite_add(test_world,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
+	sprite_add(test_world,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
+	sprite_add(test_world,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
+	sprite_add(test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
+	sprite_add(test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 l_0.png;");
+	sprite_add(test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
+	sprite_add(test_world,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 r_0.png;");
+	sprite_add(test_world,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
+	sprite_add(test_world,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 u_0.png;");
+	sprite_add(test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
+	sprite_add(test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
 	
-	sprite_lib_add(&sprt_lib,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
-	sprite_lib_add(&sprt_lib,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 l_0.png;");
-	sprite_lib_add(&sprt_lib,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
-	sprite_lib_add(&sprt_lib,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 r_0.png;");
-	sprite_lib_add(&sprt_lib,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
-	sprite_lib_add(&sprt_lib,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 u_0.png;");
-	sprite_lib_add(&sprt_lib,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
-	sprite_lib_add(&sprt_lib,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
-	
-	ch_ch0 = new_chara_template(&sprt_lib, "max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;\
+	chara_template_add(test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;\
 		gfx  0 ch0_left_move;\
 		gfx  1 ch0_left_stand;\
 		gfx  2 ch0_right_move;\
@@ -1572,11 +1636,11 @@ int main(void)
 		gfx  6 ch0_down_move;\
 		gfx  7 ch0_down_stand;");
 	
-	ch_jar = new_chara_template(&sprt_lib, "max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;\
+	chara_template_add(test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;\
 		gfx  0 jar;");
 	
-	sprt_lhud = sprite_lib_get_sprite(&sprt_lib, "hud_health_l");
-	sprt_logo = sprite_lib_get_sprite(&sprt_lib, "logo");
+	sprt_lhud = get_sprite(test_world, "hud_health_l");
+	sprt_logo = get_sprite(test_world, "logo");
 	
 	/* add test actors */
 	for (i=0;i<64;i++)
@@ -1584,7 +1648,7 @@ int main(void)
 		
 	actor_cnt=64;
 	
-	actors[0] = new_chara_active(ch_ch0);
+	actors[0] = new_chara_active(get_chara_template(test_world,"ch0"));
 	actors[0]->md=CH0_MD_STAND_D;
 	actors[0]->pos.x=50;
 	actors[0]->pos.y=-50;
@@ -1592,7 +1656,7 @@ int main(void)
 	
 	testcam.target = actors[0];
 	
-	actors[1] = new_chara_active(ch_jar);
+	actors[1] = new_chara_active(get_chara_template(test_world,"jar"));
 	actors[1]->pos.x=70;
 	actors[1]->pos.y=-50;
 	actors[1]->pos.z=1;
@@ -1626,8 +1690,8 @@ int main(void)
 	
 	
 	/* create shadow sprite*/
-	sprite_lib_add(&sprt_lib,"frames 1 10;name item_shadow;  cxy 8 2;transp 1;frames 1;intrv 10;loop 0;img 0 shad.png;");
-	sprt_shad = sprite_lib_get_sprite(&sprt_lib, "item_shadow");
+	sprite_add(test_world,"frames 1 10;name item_shadow;  cxy 8 2;transp 1;frames 1;intrv 10;loop 0;img 0 shad.png;");
+	sprt_shad = get_sprite(test_world, "item_shadow");
 	
 	game_mode = MD_CTLR_CHECK;
 	game_mode_first_loop = 1;
@@ -2011,104 +2075,6 @@ int main(void)
 						
 					break;
 				}
-				
-				/* processing for wasd-controlled actor 
-				if (&actors[i] == key_wasd_cont && cntr_c <= 0)
-				{
-					if (ctlr_main.up)
-					{
-						key_wasd_cont->md = CH_WALK;
-						key_wasd_cont->dy = 1;
-						key_wasd_cont->dir = DIR_UP;
-					}
-					if (ctlr_main.left)
-					{
-						key_wasd_cont->md = CH_WALK;
-						key_wasd_cont->dx = -1;
-						key_wasd_cont->dir = DIR_LEFT;
-					}
-					if (ctlr_main.down)
-					{
-						key_wasd_cont->dy = -1;
-						key_wasd_cont->md = CH_WALK;
-						key_wasd_cont->dir = DIR_DOWN;
-					}
-					if (ctlr_main.right)
-					{
-						key_wasd_cont->dx = 1;
-						key_wasd_cont->md = CH_WALK;
-						key_wasd_cont->dir = DIR_RIGHT;
-					}
-					
-					if ((ctlr_main.up && ctlr_main.down) || (ctlr_main.left && ctlr_main.right))
-					{
-						key_wasd_cont->dx = key_wasd_cont->dy = 0;
-						key_wasd_cont->md = CH_STAND;
-					}
-						
-					
-
-					if (ctlr_main.jump && key_wasd_cont->jump==0)
-						key_wasd_cont->jump=1;
-					
-					/* if space is held and character has already jumped, do not allow jump. 
-					if (!ctlr_main.jump && key_wasd_cont->jump==-1)
-						key_wasd_cont->jump=0;
-
-					if (key_wasd_cont->jump > 0)
-					{
-						/* jump: change z depending on values in ch_jump_ani_table 
-						if (ch_jump_ani_table[(key_wasd_cont->jump)-1] != -999)
-							key_wasd_cont->dz =
-								ch_jump_ani_table[(key_wasd_cont->jump++)-1];
-						else
-							key_wasd_cont->jump=-1;
-
-					}
-					
-					
-				}
-				else /* processing for other actors 
-				{
-					
-				}
-				
-				actor_apply_delta_doclip(&actors[i], &actors, tmaptest);
-			}
-			
-		
-			/* for each actor 
-			for (i=0;i < actor_cnt;i++)
-			{
-				sprite *use_sprite = actors[i].main;
-
-				if (!actors[i].active)
-					continue;
-				
-				if (actors[i].type==0)
-					switch(actors[i].md)
-					{
-					case CH_WALK:
-						use_sprite = actors[i].gfx_walk[actors[i].dir];
-						break;
-					case CH_STAND:
-						use_sprite = actors[i].gfx_stand[actors[i].dir];
-						break;
-					case CH_JUMP:
-						use_sprite = actors[i].gfx_jump[actors[i].dir];
-						break;
-					}
-			
-				if (use_sprite)
-					add_sprite_auto_shadow(
-						&rstest,
-						use_sprite,
-						(actors[i].type!=1) ? &sprt_shad : 0,
-						&testcam,
-						actors[i].x,
-						actors[i].y,
-						actors[i].z
-						);*/
 			}
 			
 			/* start render process: */
@@ -2162,8 +2128,6 @@ int main(void)
 		
 		SDL_BlitScaled(tmpd,0,main_display,0);
 		
-		/*SDL_BlitSurface(tmpd,0 , main_display, &pos0);*/
-
 		SDL_UpdateWindowSurface(win);
 		
 		tick_frame(FPS);
