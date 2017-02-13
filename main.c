@@ -6,12 +6,14 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
+#include "jsmn/jsmn.h"
+
 
 
 #ifdef LINUX
 #include <unistd.h>
 #else
-
+#include <windows.h>
 #endif
 
 
@@ -679,17 +681,21 @@ void clear_tilemap(tilemap *in)
 		in->tiles[x] = 0;
 }
 
-tilemap * new_tilemap()
+tilemap * new_tilemap(int w, int h, int ntiles)
 {
 	int i;
 	tilemap *n;
 	
 	n = (tilemap*) malloc(sizeof(tilemap));
 	
-	n->w = TILEMAPSIZE;
-	n->h = TILEMAPSIZE;
+	n->x = 0;
+	n->y = 0;
+	n->w = w;
+	n->h = h;
 	
-	n->ntiles = TILEMAPNTILES;
+	n->ntiles = ntiles;
+	
+	n->tsize = 16;
 	
 	n->arr = (int**) malloc(sizeof(int *) * n->h );
 	
@@ -756,6 +762,7 @@ chara_template *new_chara_template(world *in_world, char *script)
 	
 	is_int[0]=is_int[1]=is_int[2]=is_int[3]=
 		is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+		
 	
 	ln=strlen(script);
 	
@@ -1308,12 +1315,12 @@ void reset_controller(controller *a)
 int file_exists(char *fn)
 {
 	#ifdef LINUX
-	if (access(fn, F_OK)!=-1)
+	if (access(fn, F_OK) != -1)
 		return 1;
-	#else
-	#endif
-	
 	return 0;
+	#else
+	return PathFileExists(fn);
+	#endif
 }
 
 /* read controller settings from file */
@@ -1331,7 +1338,6 @@ void read_ctlr_from_file(char *fn, controller *a)
 	}
 	
 	fp = fopen(fn, "r");
-
 	
 	for (i=0;i<10;i++)
 	{
@@ -1518,8 +1524,228 @@ void get_chara_template(world *in_world, char* name)
 	}
 	
 	return tmp;
+}
+
+room * new_room(char* script)
+{
+	int buf_tmp, arg_idx, is_int[8], nargs, ln, i;
+	char buf[8][256];
+	room *n = (room*) malloc(sizeof(room));
+	
+	n->main;
+	n->mult;
+	
+	n->exits = 0;
+	n->nexits=0;
+	
+	n->chara_place = 0;
+	n->nchara = 0;
+	
+	n->bgm_id=-1;
+	
+	n->next = 0;
+	
+	
+	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0] =
+		buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0] = '\0';
+	
+	is_int[0]=is_int[1]=is_int[2]=is_int[3] = 
+		is_int[4]=is_int[5]=is_int[6]=is_int[7] = 1;
+	
+	buf_tmp=0;
+	arg_idx=0;
+	ln=strlen(script);
+	
+	nargs=0;
+	
+	i=0;
+	while (i<ln)
+	{
+		if (script[i] == ' ' || script[i] == '\n' || script[i] == '\t')
+		{
+			if (buf_tmp!=0)
+			{
+				buf_tmp=0;
+				
+				if (arg_idx<7)
+					arg_idx++;
+			}
+		}
+		else if (script[i] == ';')
+		{		
+			if (!strcmp(buf[0], "room") && /* room main main.json light.json; */
+					nargs==6 &&
+					!is_int[0] &&
+					!is_int[1] &&
+					!is_int[2] &&
+					!is_int[3] &&
+					strlen(buf[1]) < 31)
+			{
+				strcpy(n->name, n->buf[1]);
+				
+				n->main = load_tilemap_from_json(buf[2]);
+				
+				n->mult = load_tilemap_from_json(buf[3]);
+			}
+			
+			is_int[0]=is_int[1]=is_int[2]=is_int[3]=
+				is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+			arg_idx=buf_tmp=0;
+		}
+		else
+		{
+			if (!((script[i] == '-' && buf_tmp==0) || (script[i]>='0' && script[i]<='9')) )
+				is_int[arg_idx] = 0;
+			
+			buf[arg_idx][buf_tmp++] = script[i];
+			
+			if (buf_tmp>=256)
+				buf_tmp--;
+			
+			buf[arg_idx][buf_tmp] = '\0';
+			
+			nargs = arg_idx + 1;
+		}
+		i++;
+	}
+	
+	return n;
+}
+
+struct json_parse_stack_node
+{
+	int size;/* values from jsmntok_t */
+	int type;
+	
+	int left;
+	
+	int start_idx;
+	int end_idx; /* last item */
+};
+
+struct json_parse_stack
+{
+	struct json_parse_stack_node dat[8];
+	int lvl;
+	int cur;
+	int size;
+};
+
+void json_parse_next_item_same_level(struct json_parse_stack *stack, jsmntok_t *t)
+{
+	int target = stack->lvl;
+	
+	#define CURLVL stack->dat[stack->lvl] 
+	
+	while (stack->cur < stack->size)
+	{
+		if (CURLVL.type == JSMN_OBJECT)
+		{
+			if (t[stack->cur + 1].type == JSMN_OBJECT ||
+				t[stack->cur + 1].type == JSMN_ARRAY)
+			{
+				stack->lvl++;
+				CURLVL.type = t[stack->cur + 1].type;
+				CURLVL.left = t[stack->cur + 1].size;
+			}
+			else
+			{	
+				stack->cur+=2;
+				CURLVL.left--;
+			}
+			
+			
+		}
+		else if (CURLVL.type == JSMN_ARRAY)
+		{
+			
+			if (t[stack->cur].type == JSMN_OBJECT ||
+				t[stack->cur].type == JSMN_ARRAY)
+			{
+				stack->lvl++;
+				CURLVL.type = t[stack->cur].type;
+				CURLVL.left = t[stack->cur].size;
+			}
+			else
+			{	
+				stack->cur++;
+				CURLVL.left--;
+			}
+		}
+		
+		if (CURLVL.left==0)
+			while (--(stack->lvl))
+				if (CURLVL.left>1)
+					break;
+		
+		
+		
+		if (target == stack->lvl)
+			return;
+	}
+}
+
+tilemap * load_tilemap_from_json(char *fn)
+{
+	FILE *fp=0;
+	int ln=0, tw, th, ntiles, tsize, r;
+	char *dat=0;
+	tilemap *tm = 0;
+	
+	jsmn_parser p;
+	jsmntok_t *t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * 4096);
+	
+	fp = fopen(fn,"r");
+	
+	if (!fp)
+		goto ld_tilemap_ff_done;
+	
+	fseek(fp, 0L, SEEK_END);
+	ln = ftell(fp);
+	
+	if (!ln)
+		goto ld_tilemap_ff_done;
+	
+	dat = (char*) malloc(ln + 1);
+	
+	rewind(fp);
+	
+	fread(dat, ln, 1, fp);
+	
+	fclose(fp);
+	fp=0;
+	
+	jsmn_init(&p);
+	r = jsmn_parse(&p, dat, ln, t, 4096);
+	
+	/* we're assuming json tilemap was made in Tiled,
+	 * has right-down render order,
+	 * has 1 layer same size as tilemap,
+	 * and image for tileset exists.
+	 */
+	
+	if (r < 0)
+		goto ld_tilemap_ff_done;
+	
+	
+	
+	
+	
+	
+  ld_tilemap_ff_done:
+	free(t);
+	
+	if (dat)
+		free(dat);
+	
+	if (fp)
+		fclose(fp);
+		
+	return tm;
+	
 	
 }
+
 
 int main(void)
 {
@@ -1571,7 +1797,7 @@ int main(void)
 		
 	pos0.x = pos0.y = 0;
 	
-	tmaptest = new_tilemap();
+	tmaptest = new_tilemap(TILEMAPSIZE,TILEMAPSIZE,TILEMAPNTILES);
 	
 	key_wasd_cont = 0;
 	
@@ -1602,15 +1828,12 @@ int main(void)
 	tmaptest->tiles[2] = IMG_Load("w0_t2.png");
 	tmaptest->tiles[3] = IMG_Load("w0_t3.png");
 	
-	tilemap_box_modify(tmaptest, 2,0,8,0,  2);
-	tilemap_box_modify(tmaptest, 2,1,8,1,  3);
-	tilemap_box_modify(tmaptest, 2,2,8,8,  1);
-	tilemap_box_modify(tmaptest, 9,5,14,8, 1);
+	tilemap_box_modify(tmaptest, 2, 0, 8, 0, 2);
+	tilemap_box_modify(tmaptest, 2, 1, 8, 1, 3);
+	tilemap_box_modify(tmaptest, 2, 2, 8, 8, 1);
+	tilemap_box_modify(tmaptest, 9, 5, 14,8, 1);
 	
-	world_add(test_world, "room main main.json light.json 0 0;");
-	world_add(test_world, "item test_item 0;");
-	world_add(test_world, "item_place test_item main 100 100;");
-	world_add(test_world, "item_place test_item main 100 200;");
+	world_add(test_world, "room main main.json light.json;");
 	world_add(test_world, "exit test_item main 100 300 fade;");
 	
 	/* load sprites */
@@ -1660,9 +1883,6 @@ int main(void)
 	actors[1]->pos.x=70;
 	actors[1]->pos.y=-50;
 	actors[1]->pos.z=1;
-	
-	
-	
 	
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
 	{

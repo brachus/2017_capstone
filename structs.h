@@ -185,13 +185,15 @@ typedef struct cam
 
 typedef struct tilemap
 {
-	int x;/*x,y in global coords */
+	int x;  /* x,y in global coords */
 	int y;
 	
 	int w;
 	int h;
 	int ntiles;
 	int **arr; /* [row] [column]*/
+	
+	int tsize; /* w & h for tiles.  default 16px. */
 	
 	int *tile_block; /* corresponds to tiles.  0=no_block, 1=block */
 	SDL_Surface **tiles;
@@ -369,7 +371,8 @@ typedef struct inventory
 
 typedef struct rexit
 {
-	int idx;
+	int type; /* fade? fall effect? warp? (etc.) */
+	int idx;  /* dst room */
 	struct room *dst; /* this eventually replaces idx as game data is processed. */
 	xyz *loc; /* in global coords */
 	
@@ -377,6 +380,8 @@ typedef struct rexit
 
 typedef struct room
 {
+	char name[32]
+	
 	tilemap *main;
 	tilemap *mult;
 	/* use to tint sprites in
@@ -386,17 +391,11 @@ typedef struct room
 	 */
 	
 	/* exits */
-	rexit *exits;
+	rexit *exits; /* not a linked list */
 	int nexits;
 	
-	/* items */
-	/*item *items;
-	int nitems;
-	
-	item *extra_items;
-	int extra_nitems;*/
-	
-	chara_template **chara_place;
+	/* for item, npc placement, pc placement, etc. */
+	chara_template **chara_place; /* not a linked list */
 	int nchara;
 	
 	int bgm_id;

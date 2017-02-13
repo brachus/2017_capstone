@@ -2,4 +2,4 @@ gcc -DLINUX -fstack-usage -ansi\
 	`pkg-config --cflags --libs sdl2`\
 	`pkg-config --cflags --libs SDL2_image`\
 	`pkg-config --cflags --libs SDL2_ttf`\
-	main.c -o main
+	jsmn/jsmn.c main.c -o main
