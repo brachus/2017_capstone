@@ -35,7 +35,7 @@ typedef struct action_frame
 	int z;
 	
 	struct action_frame *next;
-};
+} action_frame;
 
 typedef struct sprite
 {
@@ -380,7 +380,7 @@ typedef struct rexit
 
 typedef struct room
 {
-	char name[32]
+	char name[32];
 	
 	tilemap *main;
 	tilemap *mult;

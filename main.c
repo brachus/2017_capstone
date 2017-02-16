@@ -318,7 +318,7 @@ sprite *new_sprite(char *script)
 					nargs==2 &&
 					is_int[0]==0 &&
 					is_int[1])
-				n->dfnd_frame_end=atoi(buf[1]);
+				n->dfnd_frame.cntr=atoi(buf[1]);
 				
 			else if (!strcmp(buf[0], "dfnd_frame_bbox") &&
 					nargs==4 &&
@@ -738,6 +738,8 @@ chara_template *new_chara_template(world *in_world, char *script)
 	int i, j, buf_tmp,arg_idx,ln, is_int[8],nargs;
 	char buf[8][256];
 	
+	printf("new chara template()\n");
+	
 	chara_template *n = (chara_template *) malloc(sizeof(chara_template));
 	
 	n->gfx=0;
@@ -1090,11 +1092,11 @@ void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
 	SDL_Surface *ttmp;
 	SDL_Rect pos;
 	
-	for (trow=0;trow<TILEMAPSIZE;trow++)
-		for (tcol=0;tcol<TILEMAPSIZE;tcol++)
+	for (trow=0;trow<intmap->h;trow++)
+		for (tcol=0;tcol<intmap->w;tcol++)
 		{
 			if (  intmap->arr[trow][tcol] >= 0 && 
-				  intmap->arr[trow][tcol] < TILEMAPNTILES)
+				  intmap->arr[trow][tcol] < intmap->ntiles)
 				ttmp = intmap->tiles[intmap->arr[trow][tcol]];
 			else
 				ttmp = 0;
@@ -1111,11 +1113,12 @@ void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
 				camy = incam->y;
 			}
 			
-			pos.y = SHEIGHT/2 + (trow*TILESIZE) + camy;
-			pos.x = SWIDTH/2 + (tcol*TILESIZE) - camx;
+			pos.y = SHEIGHT/2 + (trow*intmap->tsize) + camy;
+			pos.x = SWIDTH/2 + (tcol*intmap->tsize) - camx;
 			
-			if (pos.y<SHEIGHT && (pos.y+TILESIZE) >= 0 && 
-				pos.x<SWIDTH && (pos.x+TILESIZE) >= 0 && ttmp)
+			
+			if (pos.y<SHEIGHT && (pos.y+intmap->tsize) >= 0 && 
+				pos.x<SWIDTH && (pos.x+intmap->tsize) >= 0 && ttmp!=0)
 				SDL_BlitSurface(ttmp,0 , surf, &pos);
 		}
 }
@@ -1491,6 +1494,8 @@ void chara_template_add(world *in_world, char* script)
 {
 	chara_template *tmp=in_world->chara_temps;
 	
+	
+	
 	if (!tmp)
 	{
 		in_world->chara_temps = new_chara_template(in_world, script);
@@ -1512,7 +1517,7 @@ void chara_template_add(world *in_world, char* script)
 	return;
 }
 
-void get_chara_template(world *in_world, char* name)
+chara_template * get_chara_template(world *in_world, char* name)
 {
 	chara_template *tmp = in_world->chara_temps;
 	
@@ -1524,6 +1529,356 @@ void get_chara_template(world *in_world, char* name)
 	}
 	
 	return tmp;
+}
+
+typedef struct json_parse_node
+{
+	int type; /* obj|arr|num|bool|null|str*/
+	
+	struct json_parse_node **values;
+	char **keys;
+	
+	int cnt;
+	
+	int cur;/* for building tree */
+	
+	int int_dat;/*num|bool|null(-1)*/
+	float float_dat;/*num*/
+	char *str_dat;/*str*/
+	
+	struct json_parse_node *parent;
+} json_parse_node;
+
+enum
+{
+	JSON_PARSE_UND,
+	JSON_PARSE_OBJ,
+	JSON_PARSE_ARR,
+	JSON_PARSE_NUM,
+	JSON_PARSE_BOOL,
+	JSON_PARSE_NULL,
+	JSON_PARSE_STR
+};
+
+json_parse_node *new_json_parse_node(int type, int c, json_parse_node *parent)
+{
+	json_parse_node *n =
+		(json_parse_node*) malloc(sizeof(json_parse_node));
+	if (c<0)
+		c=0;
+	n->values=0;
+	if (c)
+		n->values=(json_parse_node**) malloc(sizeof(json_parse_node*) * c);
+	n->keys=0;
+	if (type==JSON_PARSE_OBJ)
+		n->keys=(char **) malloc(sizeof(char*) * c);
+	n->cnt=c;
+	n->cur=0;
+	n->type = type;
+	n->int_dat=0;
+	n->float_dat=.0;
+	n->str_dat=0;
+	n->parent = parent;
+	return n;
+}
+
+json_parse_node *json_parse_mk_tree(const char *json, jsmntok_t *t, int ntokens)
+{
+	int cur = 1;
+	char tchar[256];
+	json_parse_node *root, *cur_node, *tmp;
+	
+	#define DO_TCHAR(curtoken, assignto) \
+		sprintf(tchar, "%.*s", curtoken.end - curtoken.start, json + curtoken.start); \
+		assignto = (char*)malloc(strlen(tchar)+2); \
+		strcpy(assignto,  tchar );
+	
+	root = new_json_parse_node(JSON_PARSE_OBJ, t[0].size, 0);	
+	cur_node = root;
+		
+	while (cur < ntokens && cur_node)
+	{
+		if (cur_node->type == JSON_PARSE_OBJ)
+		{
+			/* copy key string. */
+			DO_TCHAR(t[cur], cur_node->keys[cur_node->cur] );		
+			cur++;
+		}
+		if (cur_node->type == JSON_PARSE_ARR || cur_node->type == JSON_PARSE_OBJ)	
+		{
+			switch(t[cur].type)
+			{
+			case JSMN_OBJECT:
+				tmp = new_json_parse_node(
+					JSON_PARSE_OBJ,
+					t[cur].size,
+					cur_node);
+				break;
+			case JSMN_ARRAY:
+				tmp = new_json_parse_node(
+					JSON_PARSE_ARR,
+					t[cur].size,
+					cur_node);
+				break;
+			case JSMN_UNDEFINED:
+				tmp = new_json_parse_node(JSON_PARSE_UND, 1, cur_node);
+				break;
+				/* if non-array/non-obj, fill in 
+				 * data on next loop; don't step
+				 * cur
+				 */
+			case JSMN_PRIMITIVE:
+				tmp = new_json_parse_node(JSON_PARSE_NUM, 1, cur_node);
+				DO_TCHAR(t[cur], tmp->str_dat );
+				break;
+			case JSMN_STRING:
+				tmp = new_json_parse_node(JSON_PARSE_STR, 1, cur_node);
+				DO_TCHAR(t[cur], tmp->str_dat );
+				break;
+			}
+			cur_node->values[cur_node->cur] = tmp;
+			cur_node->cur++;
+			if (t[cur].type == JSMN_OBJECT ||
+				t[cur].type == JSMN_ARRAY ||
+				t[cur].type == JSMN_PRIMITIVE)
+				cur_node=tmp;
+			if (t[cur].type == JSMN_OBJECT ||
+				t[cur].type == JSMN_ARRAY ||
+				t[cur].type == JSMN_UNDEFINED ||
+				t[cur].type==JSMN_STRING)
+				cur++;
+		}
+		else if (cur_node->type == JSON_PARSE_NUM)
+		{
+			if (cur_node->str_dat[0] == 'f')
+			{
+				cur_node->int_dat = 0;
+				cur_node->type = JSON_PARSE_BOOL;
+			}
+			else if (cur_node->str_dat[0] == 't')
+			{
+				cur_node->int_dat = 1;
+				cur_node->type = JSON_PARSE_BOOL;
+			}
+			else if (cur_node->str_dat[0] == 'n')
+			{
+				cur_node->int_dat = 0;
+				cur_node->type = JSON_PARSE_NULL;
+			}
+			else /* must be number */
+			{
+				cur_node->int_dat = atoi(cur_node->str_dat);
+				cur_node->float_dat = atof(cur_node->str_dat);
+				cur_node->type = JSON_PARSE_NUM;
+			}
+			free(cur_node->str_dat);
+			cur_node->str_dat = 0;
+			cur_node->cur++; /* will go back to parent */
+			cur++;
+		}
+		while (cur_node && cur_node->cur >= cur_node->cnt)
+			cur_node = cur_node->parent;
+	}
+	return root;
+}
+
+int json_tree_get_int_from_obj(json_parse_node *a, const char *b)
+{
+	int i;
+	if (a->type != JSON_PARSE_ARR && a->type != JSON_PARSE_OBJ)
+		return -1;
+	
+	for (i=0;i<a->cnt;i++)
+	{
+		if (!strcmp(a->keys[i], b))
+			return a->values[i]->int_dat;
+	}
+		
+	return -1;
+}
+
+json_parse_node * json_tree_get_node_from_obj(json_parse_node *a, const char *b)
+{
+	int i;
+	if (a->type != JSON_PARSE_ARR && a->type != JSON_PARSE_OBJ)
+		return 0;
+	for (i=0;i<a->cnt;i++)
+		if (!strcmp(a->keys[i], b))
+			return a->values[i];
+	return 0;
+}
+
+json_parse_node * json_tree_get_node_from_arr(json_parse_node *a, int b)
+{
+	int i;
+	if (a->type != JSON_PARSE_ARR && a->type != JSON_PARSE_OBJ)
+		return 0;
+		
+	return a->values[b];
+}
+
+/* uses strcpy */
+void json_tree_get_str_from_obj(json_parse_node *a, const char *b, char *dst)
+{
+	int i;
+	if (a->type != JSON_PARSE_ARR && a->type != JSON_PARSE_OBJ)
+		return;
+	for (i=0;i<a->cnt;i++)
+		if (!strcmp(a->keys[i], b))
+		{
+			strcpy(dst, a->values[i]->str_dat);
+			return;
+		}
+}
+
+tilemap * load_tilemap_from_json(char *fn)
+{
+	FILE *fp=0;
+	int ln=0, tw, th, ntiles, tsize, r, i, tmpw, tmph,
+		ts_load_cur_tile, tmpx, tmpy;
+	char *dat=0;
+	tilemap *tm = 0;
+	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0;
+	SDL_Rect tmp_clip_rect, pos0;
+	SDL_Surface **tilesets;
+	char tmp_str[256];
+	
+	jsmn_parser p;
+	jsmntok_t *t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * 4096);
+	
+	printf("opening %s\n",fn);
+	fp = fopen(fn,"r");
+	
+	if (!fp)
+		goto ld_tilemap_ff_done;
+	
+	fseek(fp, 0L, SEEK_END);
+	ln = ftell(fp);
+	
+	if (!ln)
+		goto ld_tilemap_ff_done;
+	
+	dat = (char*) malloc(ln + 1);
+	
+	rewind(fp);
+	
+	fread(dat, ln, 1, fp);
+	
+	fclose(fp);
+	fp=0;
+	
+	printf("jsmn init\n");
+	jsmn_init(&p);
+	printf("jsmn parse\n");
+	r = jsmn_parse(&p, dat, ln, t, 4096);
+	
+	/* we're assuming json tilemap was made in Tiled,
+	 * has right-down render order,
+	 * has 1 layer same size as tilemap,
+	 * and image for tileset exists.
+	 */
+	
+	if (r < 0)
+		goto ld_tilemap_ff_done;
+	
+	printf("creating tree\n");
+	test_tree = json_parse_mk_tree(dat, t, r);
+	printf("done\n");
+	
+	th = json_tree_get_int_from_obj(test_tree, "height");
+	tw = json_tree_get_int_from_obj(test_tree, "width");
+	tsize = json_tree_get_int_from_obj(test_tree, "tilewidth");
+	
+	printf("th %d tw %d tsize %d\n", th,tw,tsize);
+	
+	/* load tilesets (images), count up n tiles, cut tilesets into tiles for tilemap */
+	
+	/* TODO: load blocker info from properties*/
+	tmp = json_tree_get_node_from_obj(test_tree, "tilesets");
+	
+	tilesets = (SDL_Surface **) malloc(sizeof(SDL_Surface *) * tmp->cnt);
+	
+	printf("tilesets cnt %d\n", tmp->cnt);
+	
+	for (i=0;i<tmp->cnt;i++)
+	{
+		tmp1 = json_tree_get_node_from_arr(tmp, i);
+		tmpw = json_tree_get_int_from_obj(tmp1,"imagewidth") / tsize;
+		tmph = json_tree_get_int_from_obj(tmp1,"imageheight") / tsize;
+		
+		json_tree_get_str_from_obj(tmp1,"image",tmp_str);
+		
+		printf("%s %d %d\n", tmp_str, tmpw,tmph);
+		tilesets[i] = IMG_Load(tmp_str);
+		printf("tile set %d loaded!\n", i);
+		ntiles += tmpw * tmph;
+	}
+	
+	tm = new_tilemap(tw,th,ntiles);
+	tm->tsize = tsize;
+	
+	printf("ntiles %d\n", ntiles);
+	
+	tmp_clip_rect.w = tsize;
+	tmp_clip_rect.h = tsize;
+	tmp_clip_rect.x = 0;
+	tmp_clip_rect.y = 0;
+	
+	pos0.x=0;
+	pos0.y=0;
+	
+	ts_load_cur_tile=0;
+	
+	for (i=0;i<ntiles;i++)
+		tm->tiles[i] = SDL_CreateRGBSurface(0,tsize,tsize,32,0,0,0,0);
+	
+	for (i = 0; i < tmp->cnt; i++)
+	{
+		tmp_clip_rect.y = 0;
+		while (tmp_clip_rect.y  + tsize-1< tilesets[i]->h)
+		{
+			tmp_clip_rect.x = 0;
+			while (tmp_clip_rect.x + tsize-1 < tilesets[i]->w && ts_load_cur_tile < ntiles)
+			{
+				
+				
+				SDL_BlitSurface(tilesets[i], &tmp_clip_rect, tm->tiles[ts_load_cur_tile], 0);
+				
+				printf("filled tile %d %d at %d %d in tileset %d %p\n", ts_load_cur_tile, tm->tiles[ts_load_cur_tile],tmp_clip_rect.x,tmp_clip_rect.y, i,tilesets[i]);
+				
+				tmp_clip_rect.x+=tsize;
+				
+				ts_load_cur_tile++;
+			}
+			tmp_clip_rect.y+=tsize;
+		}
+	}
+	
+	/* load layer 1*/
+	tmp = json_tree_get_node_from_obj(test_tree, "layers");
+	tmp = json_tree_get_node_from_arr(tmp, 0);
+	tmp = json_tree_get_node_from_obj(tmp, "data");
+	
+	
+	tmpx=tmpy=i=0;
+	
+	for (tmpy=0;tmpy < tm->h;tmpy++)
+		for (tmpx=0;tmpx < tm->w;tmpx++)
+			tm->arr[tmpy][tmpx] = tmp->values[i++]->int_dat - 1;
+	
+	
+	/* TODO: free test_tree, tilesets */
+	
+  ld_tilemap_ff_done:
+	free(t);
+	
+	if (dat)
+		free(dat);
+	
+	if (fp)
+		fclose(fp);
+		
+	return tm;
 }
 
 room * new_room(char* script)
@@ -1581,7 +1936,7 @@ room * new_room(char* script)
 					!is_int[3] &&
 					strlen(buf[1]) < 31)
 			{
-				strcpy(n->name, n->buf[1]);
+				strcpy(n->name, buf[1]);
 				
 				n->main = load_tilemap_from_json(buf[2]);
 				
@@ -1612,139 +1967,8 @@ room * new_room(char* script)
 	return n;
 }
 
-struct json_parse_stack_node
-{
-	int size;/* values from jsmntok_t */
-	int type;
-	
-	int left;
-	
-	int start_idx;
-	int end_idx; /* last item */
-};
 
-struct json_parse_stack
-{
-	struct json_parse_stack_node dat[8];
-	int lvl;
-	int cur;
-	int size;
-};
 
-void json_parse_next_item_same_level(struct json_parse_stack *stack, jsmntok_t *t)
-{
-	int target = stack->lvl;
-	
-	#define CURLVL stack->dat[stack->lvl] 
-	
-	while (stack->cur < stack->size)
-	{
-		if (CURLVL.type == JSMN_OBJECT)
-		{
-			if (t[stack->cur + 1].type == JSMN_OBJECT ||
-				t[stack->cur + 1].type == JSMN_ARRAY)
-			{
-				stack->lvl++;
-				CURLVL.type = t[stack->cur + 1].type;
-				CURLVL.left = t[stack->cur + 1].size;
-			}
-			else
-			{	
-				stack->cur+=2;
-				CURLVL.left--;
-			}
-			
-			
-		}
-		else if (CURLVL.type == JSMN_ARRAY)
-		{
-			
-			if (t[stack->cur].type == JSMN_OBJECT ||
-				t[stack->cur].type == JSMN_ARRAY)
-			{
-				stack->lvl++;
-				CURLVL.type = t[stack->cur].type;
-				CURLVL.left = t[stack->cur].size;
-			}
-			else
-			{	
-				stack->cur++;
-				CURLVL.left--;
-			}
-		}
-		
-		if (CURLVL.left==0)
-			while (--(stack->lvl))
-				if (CURLVL.left>1)
-					break;
-		
-		
-		
-		if (target == stack->lvl)
-			return;
-	}
-}
-
-tilemap * load_tilemap_from_json(char *fn)
-{
-	FILE *fp=0;
-	int ln=0, tw, th, ntiles, tsize, r;
-	char *dat=0;
-	tilemap *tm = 0;
-	
-	jsmn_parser p;
-	jsmntok_t *t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * 4096);
-	
-	fp = fopen(fn,"r");
-	
-	if (!fp)
-		goto ld_tilemap_ff_done;
-	
-	fseek(fp, 0L, SEEK_END);
-	ln = ftell(fp);
-	
-	if (!ln)
-		goto ld_tilemap_ff_done;
-	
-	dat = (char*) malloc(ln + 1);
-	
-	rewind(fp);
-	
-	fread(dat, ln, 1, fp);
-	
-	fclose(fp);
-	fp=0;
-	
-	jsmn_init(&p);
-	r = jsmn_parse(&p, dat, ln, t, 4096);
-	
-	/* we're assuming json tilemap was made in Tiled,
-	 * has right-down render order,
-	 * has 1 layer same size as tilemap,
-	 * and image for tileset exists.
-	 */
-	
-	if (r < 0)
-		goto ld_tilemap_ff_done;
-	
-	
-	
-	
-	
-	
-  ld_tilemap_ff_done:
-	free(t);
-	
-	if (dat)
-		free(dat);
-	
-	if (fp)
-		fclose(fp);
-		
-	return tm;
-	
-	
-}
 
 
 int main(void)
@@ -1797,7 +2021,7 @@ int main(void)
 		
 	pos0.x = pos0.y = 0;
 	
-	tmaptest = new_tilemap(TILEMAPSIZE,TILEMAPSIZE,TILEMAPNTILES);
+	/*tmaptest = new_tilemap(TILEMAPSIZE,TILEMAPSIZE,TILEMAPNTILES);*/
 	
 	key_wasd_cont = 0;
 	
@@ -1805,7 +2029,7 @@ int main(void)
 	
 	rstest.next = 0;
 	clear_render_sprites(&rstest);
-	clear_tilemap(tmaptest);
+	/*clear_tilemap(tmaptest);*/
 
 	/* mirror the character jump table, because i'm too lazy */
 	j=-1;
@@ -1823,7 +2047,17 @@ int main(void)
 		}
 	}
 	
-	tmaptest->tiles[0] = IMG_Load("w0_t0.png");
+	test_world.rooms = 0;
+	test_world.chara_temps=0;
+	test_world.sprites=0;
+	test_world.attk_frames=0;
+	test_world.dfnd_frames=0;
+	
+	printf("loading tilemap\n");
+	tmaptest = load_tilemap_from_json("desert-test.json");
+	printf("done\n");
+	
+	/*tmaptest->tiles[0] = IMG_Load("w0_t0.png");
 	tmaptest->tiles[1] = IMG_Load("w0_t1.png");
 	tmaptest->tiles[2] = IMG_Load("w0_t2.png");
 	tmaptest->tiles[3] = IMG_Load("w0_t3.png");
@@ -1831,25 +2065,27 @@ int main(void)
 	tilemap_box_modify(tmaptest, 2, 0, 8, 0, 2);
 	tilemap_box_modify(tmaptest, 2, 1, 8, 1, 3);
 	tilemap_box_modify(tmaptest, 2, 2, 8, 8, 1);
-	tilemap_box_modify(tmaptest, 9, 5, 14,8, 1);
+	tilemap_box_modify(tmaptest, 9, 5, 14,8, 1);*/
 	
-	world_add(test_world, "room main main.json light.json;");
-	world_add(test_world, "exit test_item main 100 300 fade;");
+	/*world_add(test_world, "room main main.json light.json;");
+	/*world_add(test_world, "exit test_item main 100 300 fade;");*/
 	
 	/* load sprites */
-	sprite_add(test_world,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
-	sprite_add(test_world,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
-	sprite_add(test_world,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
-	sprite_add(test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
-	sprite_add(test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 l_0.png;");
-	sprite_add(test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
-	sprite_add(test_world,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 r_0.png;");
-	sprite_add(test_world,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
-	sprite_add(test_world,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 u_0.png;");
-	sprite_add(test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
-	sprite_add(test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
+	printf("load sprites\n");
+	sprite_add(&test_world,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
+	sprite_add(&test_world,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
+	sprite_add(&test_world,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 l_0.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 r_0.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 u_0.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
 	
-	chara_template_add(test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;\
+	printf("chara template add\n");
+	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;\
 		gfx  0 ch0_left_move;\
 		gfx  1 ch0_left_stand;\
 		gfx  2 ch0_right_move;\
@@ -1859,11 +2095,13 @@ int main(void)
 		gfx  6 ch0_down_move;\
 		gfx  7 ch0_down_stand;");
 	
-	chara_template_add(test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;\
+	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;\
 		gfx  0 jar;");
+		
+	printf("get sprite\n");
 	
-	sprt_lhud = get_sprite(test_world, "hud_health_l");
-	sprt_logo = get_sprite(test_world, "logo");
+	sprt_lhud = get_sprite(&test_world, "hud_health_l");
+	sprt_logo = get_sprite(&test_world, "logo");
 	
 	/* add test actors */
 	for (i=0;i<64;i++)
@@ -1871,7 +2109,8 @@ int main(void)
 		
 	actor_cnt=64;
 	
-	actors[0] = new_chara_active(get_chara_template(test_world,"ch0"));
+	printf("creating new active charas\n");
+	actors[0] = new_chara_active(get_chara_template(&test_world,"ch0"));
 	actors[0]->md=CH0_MD_STAND_D;
 	actors[0]->pos.x=50;
 	actors[0]->pos.y=-50;
@@ -1879,7 +2118,7 @@ int main(void)
 	
 	testcam.target = actors[0];
 	
-	actors[1] = new_chara_active(get_chara_template(test_world,"jar"));
+	actors[1] = new_chara_active(get_chara_template(&test_world,"jar"));
 	actors[1]->pos.x=70;
 	actors[1]->pos.y=-50;
 	actors[1]->pos.z=1;
@@ -1910,8 +2149,8 @@ int main(void)
 	
 	
 	/* create shadow sprite*/
-	sprite_add(test_world,"frames 1 10;name item_shadow;  cxy 8 2;transp 1;frames 1;intrv 10;loop 0;img 0 shad.png;");
-	sprt_shad = get_sprite(test_world, "item_shadow");
+	sprite_add(&test_world,"frames 1 10;name item_shadow;  cxy 8 2;transp 1;frames 1;intrv 10;loop 0;img 0 shad.png;");
+	sprt_shad = get_sprite(&test_world, "item_shadow");
 	
 	game_mode = MD_CTLR_CHECK;
 	game_mode_first_loop = 1;
@@ -2301,7 +2540,7 @@ int main(void)
 		
 			/* clear framebuffers */
 			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0,0,0,255 ) );
-		
+			
 			/* render tile map */
 			render_tilemap(tmpd, tmaptest, &testcam);
 		

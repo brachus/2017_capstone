@@ -1,0 +1,6 @@
+jsmn.c:6:19:jsmn_alloc_token	16	static
+jsmn.c:24:13:jsmn_fill_token	16	static
+jsmn.c:35:12:jsmn_parse_primitive	72	static
+jsmn.c:84:12:jsmn_parse_string	88	static
+jsmn.c:151:5:jsmn_parse	88	static
+jsmn.c:309:6:jsmn_init	16	static

@@ -51,27 +51,6 @@ typedef struct json_parse_node
 	struct json_parse_node *parent;
 } json_parse_node;
 
-struct json_parse_stack_node
-{
-	int size;/* values from jsmntok_t */
-	int type;
-	
-	int left;
-	
-	int start_idx;
-	int end_idx; /* last item */
-	
-	json_parse_node tree_node;
-};
-
-struct json_parse_stack
-{
-	struct json_parse_stack_node dat[8];
-	int lvl;
-	int cur;
-	int size;
-};
-
 enum
 {
 	JSON_PARSE_UND,
@@ -83,36 +62,25 @@ enum
 	JSON_PARSE_STR
 };
 
-
-
-json_parse_node *new_json_parse_node(int type, int children, json_parse_node *parent)
+json_parse_node *new_json_parse_node(int type, int c, json_parse_node *parent)
 {
-	json_parse_node *n = (json_parse_node*) malloc(sizeof(json_parse_node));
-	
-	if (children<0)
-		children=0;
-	
+	json_parse_node *n =
+		(json_parse_node*) malloc(sizeof(json_parse_node));
+	if (c<0)
+		c=0;
 	n->values=0;
-	if (children)
-		n->values=(json_parse_node**) malloc(sizeof(json_parse_node*) * children);
-	
+	if (c)
+		n->values=(json_parse_node**) malloc(sizeof(json_parse_node*) * c);
 	n->keys=0;
 	if (type==JSON_PARSE_OBJ)
-		n->keys=(char **) malloc(sizeof(char*) * children);
-		
-	
-	n->cnt=children;
-	
+		n->keys=(char **) malloc(sizeof(char*) * c);
+	n->cnt=c;
 	n->cur=0;
-	
 	n->type = type;
-	
 	n->int_dat=0;
 	n->float_dat=.0;
 	n->str_dat=0;
-	
 	n->parent = parent;
-	
 	return n;
 }
 
@@ -120,25 +88,22 @@ json_parse_node *json_parse_mk_tree(const char *json, jsmntok_t *t, int ntokens)
 {
 	int cur = 1;
 	char tchar[256];
-	json_parse_node *root = new_json_parse_node(JSON_PARSE_OBJ, t[0].size, 0);	
-	json_parse_node *cur_node = root, *tmp;
+	json_parse_node *root, *cur_node, *tmp;
 	
 	#define DO_TCHAR(curtoken, assignto) \
 		sprintf(tchar, "%.*s", curtoken.end - curtoken.start, json + curtoken.start); \
 		assignto = (char*)malloc(strlen(tchar)+2); \
-		strcpy(assignto,  tchar ); \
+		strcpy(assignto,  tchar );
+	
+	root = new_json_parse_node(JSON_PARSE_OBJ, t[0].size, 0);	
+	cur_node = root;
 		
 	while (cur < ntokens && cur_node)
 	{
-		printf("cur %d\n",cur);
-		
 		if (cur_node->type == JSON_PARSE_OBJ)
 		{
-			/* Copy key string. */
-			DO_TCHAR(t[cur], cur_node->keys[cur_node->cur] );
-			
-			printf("  keystr: %s\n",cur_node->keys[cur_node->cur]);
-			
+			/* copy key string. */
+			DO_TCHAR(t[cur], cur_node->keys[cur_node->cur] );		
 			cur++;
 		}
 		if (cur_node->type == JSON_PARSE_ARR || cur_node->type == JSON_PARSE_OBJ)	
@@ -146,38 +111,47 @@ json_parse_node *json_parse_mk_tree(const char *json, jsmntok_t *t, int ntokens)
 			switch(t[cur].type)
 			{
 			case JSMN_OBJECT:
-				printf("  new obj %d\n",t[cur].size	);
-				tmp = new_json_parse_node(JSON_PARSE_OBJ, t[cur].size, cur_node); break;
+				tmp = new_json_parse_node(
+					JSON_PARSE_OBJ,
+					t[cur].size,
+					cur_node);
+				break;
 			case JSMN_ARRAY:
-				printf("  new arr\n");
-				tmp = new_json_parse_node(JSON_PARSE_ARR, t[cur].size, cur_node); break;
+				tmp = new_json_parse_node(
+					JSON_PARSE_ARR,
+					t[cur].size,
+					cur_node);
+				break;
 			case JSMN_UNDEFINED:
 				tmp = new_json_parse_node(JSON_PARSE_UND, 1, cur_node);
-				break; /* if non-array/non-obj, fill in data on next loop; don't step cur */
+				break;
+				/* if non-array/non-obj, fill in 
+				 * data on next loop; don't step
+				 * cur
+				 */
 			case JSMN_PRIMITIVE:
 				tmp = new_json_parse_node(JSON_PARSE_NUM, 1, cur_node);
 				DO_TCHAR(t[cur], tmp->str_dat );
-				printf("  primitive %s\n",tmp->str_dat);
 				break;
 			case JSMN_STRING:
 				tmp = new_json_parse_node(JSON_PARSE_STR, 1, cur_node);
 				DO_TCHAR(t[cur], tmp->str_dat );
-				printf("  string %s\n",tmp->str_dat);
 				break;
 			}
 			cur_node->values[cur_node->cur] = tmp;
 			cur_node->cur++;
-			
-			if (t[cur].type == JSMN_OBJECT || t[cur].type == JSMN_ARRAY || t[cur].type == JSMN_PRIMITIVE)
+			if (t[cur].type == JSMN_OBJECT ||
+				t[cur].type == JSMN_ARRAY ||
+				t[cur].type == JSMN_PRIMITIVE)
 				cur_node=tmp;
-			
-			if (t[cur].type == JSMN_OBJECT || t[cur].type == JSMN_ARRAY || t[cur].type == JSMN_UNDEFINED || t[cur].type==JSMN_STRING)
+			if (t[cur].type == JSMN_OBJECT ||
+				t[cur].type == JSMN_ARRAY ||
+				t[cur].type == JSMN_UNDEFINED ||
+				t[cur].type==JSMN_STRING)
 				cur++;
-				
 		}
 		else if (cur_node->type == JSON_PARSE_NUM)
 		{
-			printf("parsenum\n");
 			if (cur_node->str_dat[0] == 'f')
 			{
 				cur_node->int_dat = 0;
@@ -202,119 +176,85 @@ json_parse_node *json_parse_mk_tree(const char *json, jsmntok_t *t, int ntokens)
 			free(cur_node->str_dat);
 			cur_node->str_dat = 0;
 			cur_node->cur++; /* will go back to parent */
-			
 			cur++;
 		}
-		
-		while (cur_node->cur >= cur_node->cnt)
-		{
-			printf("cc %d %d %d ?\n", cur_node, cur_node->cur, cur_node->cnt);
+		while (cur_node && cur_node->cur >= cur_node->cnt)
 			cur_node = cur_node->parent;
-			if (!cur_node)
-				break;
-		}
-			
 	}
-	
 	return root;
 }
 
-void q_s_spc(int cnt)
-{
-	while (cnt--)
-		printf(" ");
-}
-
-void json_parse_tree_print(json_parse_node *root, int lvl)
+void json_parse_tree_print(json_parse_node *root)
 {
 	int i;
-	
 	switch (root->type)
 	{
 	case JSON_PARSE_ARR:
-		q_s_spc(lvl);
-		printf("[\n");
+		printf("[");
 		for (i=0;i<root->cnt;i++)
 		{
-			json_parse_tree_print(root->values[i], lvl+1);
+			json_parse_tree_print(root->values[i]);
 			if (i<root->cnt-1)
-				printf(",\n");
+				printf(", ");
 		}
-		printf("\n"); q_s_spc(lvl); printf("]\n");
-			
+		printf("]");
 		break;
 	case JSON_PARSE_OBJ:
-		q_s_spc(lvl);
-		printf("{\n");
+		printf("{");
 		for (i=0;i<root->cnt;i++)
 		{
-			q_s_spc(lvl);
 			if (root->keys[i])
 				printf("%s : ", root->keys[i]);
-			json_parse_tree_print(root->values[i], 0);
+			json_parse_tree_print(root->values[i]);
 			if (i<root->cnt-1)
-				printf(",\n");
+				printf(", ");
 		}
-		printf("\n"); q_s_spc(lvl); printf("}\n");
+		printf("}");
 		break;
 	case JSON_PARSE_NULL:
-		q_s_spc(lvl);
-		printf("null ");
+		printf("null");
 		break;
 	case JSON_PARSE_NUM:
-		printf("%d (%f) ",root->int_dat, root->float_dat);
+		printf("%d",root->int_dat);
 		break;
 	case JSON_PARSE_STR:
-		printf("\"%s\" ",root->str_dat);
+		printf("\"%s\"",root->str_dat);
 		break;
 	case JSON_PARSE_BOOL:
-		printf("%s ",(root->int_dat) ? "true" : "false" );
+		printf("%s",(root->int_dat) ? "true" : "false" );
 		break;
 	case JSON_PARSE_UND:
-		printf("undef " );
+		printf("undef" );
 		break;
 	}
 }
 
-
-int json_get(const char *json, jsmntok_t *tok)
+int main()
 {
-	if (tok->type==JSMN_UNDEFINED)
-		printf("und %d: ",tok->size);
-	if (tok->type==JSMN_OBJECT)
-		printf("obj %d: ",tok->size);
-	if (tok->type==JSMN_ARRAY)
-		printf("arr %d: ",tok->size);
-	if (tok->type==JSMN_STRING)
-		printf("str %d: ",tok->size);
-	if (tok->type==JSMN_PRIMITIVE)
-		printf("prm %d: ",tok->size);
-	printf("%.*s\n", tok->end - tok->start, json + tok->start);
-}
-
-int main() {
-	int i;
-	int r;
+	int i, r;
 	jsmn_parser p;
 	jsmntok_t t[128]; /* We expect no more than 128 tokens */
 
 	jsmn_init(&p);
 	r = jsmn_parse(&p, JSON_STRING, strlen(JSON_STRING), t, sizeof(t)/sizeof(t[0]));
-	if (r < 0) {
+	
+	if (r < 0) 
+	{
 		printf("Failed to parse JSON: %d\n", r);
 		return 1;
 	}
 
 	/* Assume the top-level element is an object */
-	if (r < 1 || t[0].type != JSMN_OBJECT) {
+	if (r < 1 || t[0].type != JSMN_OBJECT)
+	{
 		printf("Object expected\n");
 		return 1;
 	}
 	
 	json_parse_node *test_tree = json_parse_mk_tree(JSON_STRING, t, r);
 	
-	json_parse_tree_print(test_tree, 0);
-		
-		
+	json_parse_tree_print(test_tree);
+	printf("\n");
+	
 	return EXIT_SUCCESS;
 }
