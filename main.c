@@ -29,6 +29,48 @@
 
 #define FPS 60
 
+/* definitions for quick'n'dirty parser for setting up structs */
+#define QUICK_PARSE_DECLARATIONS \
+	int buf_tmp, arg_idx, is_int[8], nargs, ln, i; \
+	char buf[8][256];
+
+#define QUICK_PARSE_BEFORE_LINE \
+	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0] = \
+		buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0] = '\0'; \
+	is_int[0]=is_int[1]=is_int[2]=is_int[3] =  \
+		is_int[4]=is_int[5]=is_int[6]=is_int[7] = 1; \
+	buf_tmp=arg_idx=0; \
+	ln=strlen(script); \
+	nargs=i=0; \
+	while (i<ln) { \
+		if (script[i] == ' ' || script[i] == '\n' || script[i] == '\t') \
+		{ \
+			if (buf_tmp!=0) \
+			{ \
+				buf_tmp=0; \
+				if (arg_idx<7) \
+					arg_idx++; \
+			} \
+		} \
+		else if (script[i] == ';') \
+		{
+
+#define QUICK_PARSE_AFTER_LINE \
+		is_int[0]=is_int[1]=is_int[2]=is_int[3]= \
+			is_int[4]=is_int[5]=is_int[6]=is_int[7]=1; \
+		arg_idx=buf_tmp=0; \
+	} \
+	else \
+	{ \
+		if (!((script[i] == '-' && buf_tmp==0) || (script[i]>='0' && script[i]<='9')) ) \
+			is_int[arg_idx] = 0; \
+		buf[arg_idx][buf_tmp++] = script[i]; \
+		if (buf_tmp>=256) \
+			buf_tmp--; \
+		buf[arg_idx][buf_tmp] = '\0'; \
+		nargs = arg_idx + 1; \
+	}i++;}
+
 int flag_screen_mult = 1;
 
 enum
@@ -47,17 +89,7 @@ enum
 	SBMD_TRANS_A_IN
 };
 
-enum
-{
-	CH0_MD_STAND_U,
-	CH0_MD_STAND_D,
-	CH0_MD_STAND_L,
-	CH0_MD_STAND_R,
-	CH0_MD_WALK_U,
-	CH0_MD_WALK_D,
-	CH0_MD_WALK_L,
-	CH0_MD_WALK_R
-};
+
 
 enum
 {
@@ -93,6 +125,8 @@ enum
 	ANI_NEXT
 };
 
+
+
 #include "structs.h"
 
 void tick_frame(int fps)
@@ -117,25 +151,18 @@ sprite *new_sprite(char *script)
 {
 	int j;
 	
-	int buf_tmp, arg_idx, is_int[8], nargs, ln, i;
-	char buf[8][256];
+	QUICK_PARSE_DECLARATIONS
 	
 	sprite *n=(sprite *) malloc(sizeof(sprite));
 	
-	
-	
 	n->cx=0;
 	n->cy=0;
-	
 	n->transp=0;
-	
 	n->frames=0;
 	n->sprt_arr=0;
 	n->intrv=0;
 	n->loop=0;
-	
 	n->name[0]='\0';
-	
 	n->attk_frame_start=0;
 	n->attk_frame.cntr=0;
 	n->attk_frame.id=0;
@@ -145,7 +172,6 @@ sprite *new_sprite(char *script)
 	n->attk_frame.w=0;
 	n->attk_frame.h=0;
 	n->attk_frame.z=0;
-	
 	n->dfnd_frame_start;
 	n->dfnd_frame.cntr=0;
 	n->dfnd_frame.id=0;
@@ -155,208 +181,159 @@ sprite *new_sprite(char *script)
 	n->dfnd_frame.w=0;
 	n->dfnd_frame.h=0;
 	n->dfnd_frame.z=0;
-	
 	n->drift=0; /* sprite may animate parent character*/
-	
 	n->next=0;
 	
 	
-	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0] = '\0';
-	buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0] = '\0';
+	QUICK_PARSE_BEFORE_LINE
 	
-	is_int[0]=is_int[1]=is_int[2]=is_int[3] = 1;
-	is_int[4]=is_int[5]=is_int[6]=is_int[7] = 1;
-	
-	buf_tmp=0;
-	arg_idx=0;
-	ln=strlen(script);
-	
-	nargs=0;
-	
-	
-	
-	i=0;
-	while (i<ln)
-	{
-		if (script[i] == ' ' || script[i] == '\n' || script[i] == '\t')
+		if (	!strcmp(buf[0], "img") &&
+				n->frames!=0 &&
+				nargs==3 &&
+				is_int[0]==0 && 
+				is_int[1] &&
+				is_int[2]==0) /* load image for frame: img <int frame> <str fn>;*/
 		{
-			if (buf_tmp!=0)
+			if (atoi(buf[1]) < n->frames)
 			{
-				buf_tmp=0;
+				n->sprt_arr[atoi(buf[1])] = IMG_Load(buf[2]);
 				
-				if (arg_idx<7)
-					arg_idx++;
+				if (!n->sprt_arr[atoi(buf[1])])
+					printf("error: \"%s\" failed to load.\n", buf[2]);
 			}
 		}
-		else if (script[i] == ';')
-		{		
-			if (	!strcmp(buf[0], "img") &&
-					n->frames!=0 &&
-					nargs==3 &&
-					is_int[0]==0 && 
-					is_int[1] &&
-					is_int[2]==0) /* load image for frame: img <int frame> <str fn>;*/
+		else if (!strcmp(buf[0], "drift") &&
+				n->frames!=0 &&
+				is_int[0]==0 &&
+				is_int[1] &&
+				is_int[2] &&
+				is_int[3] &&
+				is_int[4] &&
+				nargs==5) /* set drift for frame: img <int frame> <int x> <int y> <int z>;*/
+		{
+			if (atoi(buf[1]) < (n->frames * n->intrv))
 			{
-				if (atoi(buf[1]) < n->frames)
-				{
-					n->sprt_arr[atoi(buf[1])] = IMG_Load(buf[2]);
-					
-					if (!n->sprt_arr[atoi(buf[1])])
-						printf("error: \"%s\" failed to load.\n", buf[2]);
-				}
+				n->drift[atoi(buf[1])].x = atoi(buf[2]);
+				n->drift[atoi(buf[1])].y = atoi(buf[3]);
+				n->drift[atoi(buf[1])].z = atoi(buf[4]);
 			}
-			else if (!strcmp(buf[0], "drift") &&
-					n->frames!=0 &&
-					is_int[0]==0 &&
-					is_int[1] &&
-					is_int[2] &&
-					is_int[3] &&
-					is_int[4] &&
-					nargs==5) /* set drift for frame: img <int frame> <int x> <int y> <int z>;*/
+		}
+			/* polymorphism: second arg may be string like "all", which would set all items in drift array. */
+		else if (!strcmp(buf[0], "drift") &&
+				n->frames!=0 &&
+				is_int[0]==0 &&
+				is_int[1]==0 &&
+				is_int[2] &&
+				is_int[3] &&
+				is_int[4] &&
+				nargs==5) /* set drift for frame: img <int frame> <int x> <int y> <int z>;*/
+		{
+			if ( !strcmp(buf[1], "all") )
 			{
-				if (atoi(buf[1]) < (n->frames * n->intrv))
-				{
-					n->drift[atoi(buf[1])].x = atoi(buf[2]);
-					n->drift[atoi(buf[1])].y = atoi(buf[3]);
-					n->drift[atoi(buf[1])].z = atoi(buf[4]);
-				}
-			}
-				/* polymorphism: second arg may be string like "all", which would set all items in drift array. */
-			else if (!strcmp(buf[0], "drift") &&
-					n->frames!=0 &&
-					is_int[0]==0 &&
-					is_int[1]==0 &&
-					is_int[2] &&
-					is_int[3] &&
-					is_int[4] &&
-					nargs==5) /* set drift for frame: img <int frame> <int x> <int y> <int z>;*/
-			{
-				if ( !strcmp(buf[1], "all") )
-				{
-					for (j=0;j<n->frames * n->intrv;j++)
-					{
-						n->drift[j].x = atoi(buf[2]);
-						n->drift[j].y = atoi(buf[3]);
-						n->drift[j].z = atoi(buf[4]);
-					}
-				}
-			}
-			else if (!strcmp(buf[0], "cxy") &&
-					nargs==3 &&
-					is_int[0]==0 &&
-					is_int[1] &&
-					is_int[2])
-			{
-				n->cx=atoi(buf[1]);
-				n->cy=atoi(buf[2]);
-			}
-			else if (!strcmp(buf[0], "frames") && /* frames <frames> <intrv> */
-					nargs==3 &&
-					is_int[0]==0 &&
-					is_int[1] &&
-					is_int[2]  )
-			{
-				n->frames=atoi(buf[1]);
-				n->intrv=atoi(buf[2]);
-				
-				n->sprt_arr = (SDL_Surface**) malloc(sizeof(SDL_Surface*) * n->frames);
-				for (j=0;j<n->frames;j++)
-					n->sprt_arr[j]=0;		
-				
-				n->drift = (xyz*) malloc(sizeof(xyz) * n->frames * n->intrv);
-				/* NOTE: drift, attack frame, and defend frames use *actual
-				 * frames*, meaning all the ticks in between 'frames' specified
-				 * by intrv
-				 */
-				 
 				for (j=0;j<n->frames * n->intrv;j++)
-					n->drift[j].x=n->drift[j].y=n->drift[j].z=0;
-				
+				{
+					n->drift[j].x = atoi(buf[2]);
+					n->drift[j].y = atoi(buf[3]);
+					n->drift[j].z = atoi(buf[4]);
+				}
 			}
-				
-			else if (!strcmp(buf[0], "loop") && nargs==2 && is_int[0]==0 && is_int[1])
-				n->loop=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "transp") && nargs==2 && is_int[0]==0 && is_int[1])
-				n->transp=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "name") && nargs==2 && is_int[0]==0 && is_int[1]==0 && strlen(buf[1]) < 31)
-				strcpy(n->name, buf[1]);
-			
-			else if (!strcmp(buf[0], "intrv") && nargs==2 && is_int[0]==0 && is_int[1])
-				n->intrv=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "attk_frame_start") && nargs==2 && is_int[0]==0 && is_int[1])
-				n->attk_frame_start=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "attk_frame_len") && nargs==2 && is_int[0]==0 && is_int[1]) /* set attack frame counter */
-				n->attk_frame.cntr=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "attk_frame_bbox") &&
-					nargs==6 &&
-					is_int[0]==0 &&
-					is_int[1] &&
-					is_int[2] &&
-					is_int[3] &&
-					is_int[4] &&
-					is_int[5]) /*attk_frame_bbox <h> <w> <z>;*/
-			{
-				n->attk_frame.x=atoi(buf[1]);
-				n->attk_frame.y=atoi(buf[2]);
-				n->attk_frame.h=atoi(buf[3]);
-				n->attk_frame.w=atoi(buf[4]);
-				n->attk_frame.z=atoi(buf[5]);
-			}
-				
-			else if (!strcmp(buf[0], "dfnd_frame_start") &&
-					nargs==2 &&
-					is_int[0]==0 && 
-					is_int[1])
-				n->dfnd_frame_start=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "dfnd_frame_len") &&
-					nargs==2 &&
-					is_int[0]==0 &&
-					is_int[1])
-				n->dfnd_frame.cntr=atoi(buf[1]);
-				
-			else if (!strcmp(buf[0], "dfnd_frame_bbox") &&
-					nargs==4 &&
-					is_int[0]==0 &&
-					is_int[1] &&
-					is_int[2] &&
-					is_int[3] &&
-					is_int[4] &&
-					is_int[5]) /* dfnd_frame_bbox <h> <w> <z>;*/
-			{
-				n->dfnd_frame.x=atoi(buf[1]);
-				n->dfnd_frame.y=atoi(buf[2]);
-				n->dfnd_frame.h=atoi(buf[3]);
-				n->dfnd_frame.w=atoi(buf[4]);
-				n->dfnd_frame.z=atoi(buf[5]);
-			}
-			
-			is_int[0]=is_int[1]=is_int[2]=is_int[3]=is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
-			arg_idx=buf_tmp=0;
 		}
-		else
+		else if (!strcmp(buf[0], "cxy") &&
+				nargs==3 &&
+				is_int[0]==0 &&
+				is_int[1] &&
+				is_int[2])
 		{
-			if (!((script[i] == '-' && buf_tmp==0) || (script[i]>='0' && script[i]<='9')) )
-				is_int[arg_idx] = 0;
-			
-			buf[arg_idx][buf_tmp++] = script[i];
-			
-			if (buf_tmp>=256)
-				buf_tmp--;
-			
-			buf[arg_idx][buf_tmp] = '\0';
-			
-			nargs = arg_idx + 1;
+			n->cx=atoi(buf[1]);
+			n->cy=atoi(buf[2]);
 		}
-		i++;
-	}
-	
-	
+		else if (!strcmp(buf[0], "frames") && /* frames <frames> <intrv> */
+				nargs==3 &&
+				is_int[0]==0 &&
+				is_int[1] &&
+				is_int[2]  )
+		{
+			n->frames=atoi(buf[1]);
+			n->intrv=atoi(buf[2]);
+			
+			n->sprt_arr = (SDL_Surface**) malloc(sizeof(SDL_Surface*) * n->frames);
+			for (j=0;j<n->frames;j++)
+				n->sprt_arr[j]=0;		
+			
+			n->drift = (xyz*) malloc(sizeof(xyz) * n->frames * n->intrv);
+			/* NOTE: drift, attack frame, and defend frames use *actual
+			 * frames*, meaning all the ticks in between 'frames' specified
+			 * by intrv
+			 */
+			 
+			for (j=0;j<n->frames * n->intrv;j++)
+				n->drift[j].x=n->drift[j].y=n->drift[j].z=0;
+			
+		}
+			
+		else if (!strcmp(buf[0], "loop") && nargs==2 && is_int[0]==0 && is_int[1])
+			n->loop=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "transp") && nargs==2 && is_int[0]==0 && is_int[1])
+			n->transp=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "name") && nargs==2 && is_int[0]==0 && is_int[1]==0 && strlen(buf[1]) < 31)
+			strcpy(n->name, buf[1]);
+		
+		else if (!strcmp(buf[0], "intrv") && nargs==2 && is_int[0]==0 && is_int[1])
+			n->intrv=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "attk_frame_start") && nargs==2 && is_int[0]==0 && is_int[1])
+			n->attk_frame_start=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "attk_frame_len") && nargs==2 && is_int[0]==0 && is_int[1]) /* set attack frame counter */
+			n->attk_frame.cntr=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "attk_frame_bbox") &&
+				nargs==6 &&
+				is_int[0]==0 &&
+				is_int[1] &&
+				is_int[2] &&
+				is_int[3] &&
+				is_int[4] &&
+				is_int[5]) /*attk_frame_bbox <h> <w> <z>;*/
+		{
+			n->attk_frame.x=atoi(buf[1]);
+			n->attk_frame.y=atoi(buf[2]);
+			n->attk_frame.h=atoi(buf[3]);
+			n->attk_frame.w=atoi(buf[4]);
+			n->attk_frame.z=atoi(buf[5]);
+		}
+			
+		else if (!strcmp(buf[0], "dfnd_frame_start") &&
+				nargs==2 &&
+				is_int[0]==0 && 
+				is_int[1])
+			n->dfnd_frame_start=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "dfnd_frame_len") &&
+				nargs==2 &&
+				is_int[0]==0 &&
+				is_int[1])
+			n->dfnd_frame.cntr=atoi(buf[1]);
+			
+		else if (!strcmp(buf[0], "dfnd_frame_bbox") &&
+				nargs==4 &&
+				is_int[0]==0 &&
+				is_int[1] &&
+				is_int[2] &&
+				is_int[3] &&
+				is_int[4] &&
+				is_int[5]) /* dfnd_frame_bbox <h> <w> <z>;*/
+		{
+			n->dfnd_frame.x=atoi(buf[1]);
+			n->dfnd_frame.y=atoi(buf[2]);
+			n->dfnd_frame.h=atoi(buf[3]);
+			n->dfnd_frame.w=atoi(buf[4]);
+			n->dfnd_frame.z=atoi(buf[5]);
+		}
+
+	QUICK_PARSE_AFTER_LINE
 	
 	return n;
 }
@@ -735,10 +712,7 @@ void clear_render_sprites(render_sprite_head *in)
 
 chara_template *new_chara_template(world *in_world, char *script)
 {
-	int i, j, buf_tmp,arg_idx,ln, is_int[8],nargs;
-	char buf[8][256];
-	
-	printf("new chara template()\n");
+	QUICK_PARSE_DECLARATIONS
 	
 	chara_template *n = (chara_template *) malloc(sizeof(chara_template));
 	
@@ -759,92 +733,49 @@ chara_template *new_chara_template(world *in_world, char *script)
 	
 	n->next=0;
 	
-	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0]=
-		buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0]='\0';
-	
-	is_int[0]=is_int[1]=is_int[2]=is_int[3]=
-		is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
+	QUICK_PARSE_BEFORE_LINE
+		if (	!strcmp(buf[0], "max_hp") &&nargs==2 &&
+				is_int[0]==0 && is_int[1])
+			n->max_hp = atoi(buf[1]);
+		else if (	!strcmp(buf[0], "max_mp") &&nargs==2 &&
+				is_int[0]==0 && is_int[1])
+			n->max_mp = atoi(buf[1]);
+		else if (	!strcmp(buf[0], "attack") &&nargs==2 &&
+				is_int[0]==0 && is_int[1])
+			n->attack = atoi(buf[1]);
+		else if (	!strcmp(buf[0], "defend") &&nargs==2 &&
+				is_int[0]==0 && is_int[1])
+			n->defend = atoi(buf[1]);
+		else if (	!strcmp(buf[0], "bbox") &&nargs==4 &&
+				is_int[0]==0 && is_int[1] && is_int[2] && is_int[3])
+		{
+			n->bbox_h = atoi(buf[1]);
+			n->bbox_w = atoi(buf[2]);
+			n->bbox_z = atoi(buf[3]);
+		}
+		else if (	!strcmp(buf[0], "type") && nargs==2 &&
+				is_int[0]==0 && is_int[1])
+			n->type = atoi(buf[1]);
+		else if (	!strcmp(buf[0], "gfx_cnt") &&nargs==2 &&
+				is_int[0]==0 && is_int[1])
+		{
+			n->gfx_cnt = atoi(buf[1]);
+			
+			n->gfx = (sprite**) malloc(sizeof(sprite*)*n->gfx_cnt);
+		}
+			
+		else if (	!strcmp(buf[0], "gfx") && nargs==3 &&
+				is_int[0]==0 && is_int[1] && is_int[2]==0 && n->gfx_cnt>0)
+			n->gfx[atoi(buf[1])] = get_sprite(in_world, buf[2]);
 		
-	
-	ln=strlen(script);
-	
-	buf_tmp=arg_idx=nargs=i=0;
-	
-	while (i<ln)
-	{
-		if (script[i] == ' ' || script[i] == '\n' || script[i] == '\t')
-		{
-			if (buf_tmp!=0)
-			{
-				buf_tmp=0;
-				
-				if (arg_idx<7)
-					arg_idx++;
-			}
-		}
-		else if (script[i] == ';')
-		{
-			if (	!strcmp(buf[0], "max_hp") &&nargs==2 &&
-					is_int[0]==0 && is_int[1])
-				n->max_hp = atoi(buf[1]);
-			else if (	!strcmp(buf[0], "max_mp") &&nargs==2 &&
-					is_int[0]==0 && is_int[1])
-				n->max_mp = atoi(buf[1]);
-			else if (	!strcmp(buf[0], "attack") &&nargs==2 &&
-					is_int[0]==0 && is_int[1])
-				n->attack = atoi(buf[1]);
-			else if (	!strcmp(buf[0], "defend") &&nargs==2 &&
-					is_int[0]==0 && is_int[1])
-				n->defend = atoi(buf[1]);
-			else if (	!strcmp(buf[0], "bbox") &&nargs==4 &&
-					is_int[0]==0 && is_int[1] && is_int[2] && is_int[3])
-			{
-				n->bbox_h = atoi(buf[1]);
-				n->bbox_w = atoi(buf[2]);
-				n->bbox_z = atoi(buf[3]);
-			}
-			else if (	!strcmp(buf[0], "type") && nargs==2 &&
-					is_int[0]==0 && is_int[1])
-				n->type = atoi(buf[1]);
-			else if (	!strcmp(buf[0], "gfx_cnt") &&nargs==2 &&
-					is_int[0]==0 && is_int[1])
-			{
-				n->gfx_cnt = atoi(buf[1]);
-				
-				n->gfx = (sprite**) malloc(sizeof(sprite*)*n->gfx_cnt);
-			}
-				
-			else if (	!strcmp(buf[0], "gfx") && nargs==3 &&
-					is_int[0]==0 && is_int[1] && is_int[2]==0 && n->gfx_cnt>0)
-				n->gfx[atoi(buf[1])] = get_sprite(in_world, buf[2]);
+		else if (!strcmp(buf[0], "name") &&
+				nargs==2 &&
+				is_int[0]==0 &&
+				is_int[1]==0 &&
+				strlen(buf[1]) < 31)
+			strcpy(n->name, buf[1]);
 			
-			else if (!strcmp(buf[0], "name") &&
-					nargs==2 &&
-					is_int[0]==0 &&
-					is_int[1]==0 &&
-					strlen(buf[1]) < 31)
-				strcpy(n->name, buf[1]);
-			
-			is_int[0]=is_int[1]=is_int[2]=is_int[3]=is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
-			
-			arg_idx=buf_tmp=0;
-		}
-		else
-		{
-			if (!((script[i] == '-' && buf_tmp==0) || (script[i]>='0' && script[i]<='9')))
-				is_int[arg_idx] = 0;
-			
-			buf[arg_idx][buf_tmp++] = script[i];
-			
-			if (buf_tmp>=256)
-				buf_tmp--;
-			
-			buf[arg_idx][buf_tmp] = '\0';
-			
-			nargs = arg_idx+1;
-		}
-		i++;
-	}
+	QUICK_PARSE_AFTER_LINE
 	
 	return n;
 }
@@ -880,6 +811,7 @@ chara_active *new_chara_active(chara_template *a)
 		n->gfx[i] = new_sprite_active(a->gfx[i]);
 	
 	n->md=0;
+	n->md_prev=0;
 	
 	n->max_hp = a->max_hp;
 	n->max_mp = a->max_mp;
@@ -906,6 +838,9 @@ chara_active *new_chara_active(chara_template *a)
 	n->in_room=0;
 	
 	n->id = id_step++;
+	
+	n->info[0]=n->info[1]=n->info[2]=n->info[3]=
+		n->info[4]=n->info[5]=n->info[6]=n->info[7]=0;
 	
 	n->next=0;
 	
@@ -1065,7 +1000,6 @@ void tilemap_box_modify(tilemap *in, int x0, int y0, int x1, int y1, int val)
 	for (trow=y0;trow<=y1;trow++)
 		for(tcol=x0;tcol<=x1;tcol++)
 			in->arr[trow][tcol] = val;
-	
 }
 
 
@@ -1079,9 +1013,7 @@ void render_rsprite_list(SDL_Surface *surf, render_sprite_head *sprh, int shad_t
 	{	
 		pos.x = tmp->x - tmp->cx;
 		pos.y = tmp->y - tmp->cy;
-		
-			SDL_BlitSurface(tmp->sprt,0 , surf, &pos);
-		
+		SDL_BlitSurface(tmp->sprt,0 , surf, &pos);
 		tmp = tmp->next;
 	}
 }
@@ -1115,6 +1047,12 @@ void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
 			
 			pos.y = SHEIGHT/2 + (trow*intmap->tsize) + camy;
 			pos.x = SWIDTH/2 + (tcol*intmap->tsize) - camx;
+			
+			if (pos.y+intmap->tsize<0 ||
+				pos.y>SHEIGHT ||
+				pos.x+intmap->tsize<0 ||
+				pos.x>SWIDTH)
+				continue;
 			
 			
 			if (pos.y<SHEIGHT && (pos.y+intmap->tsize) >= 0 && 
@@ -1194,14 +1132,13 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	
 	SDL_Surface *src;
 	SDL_PixelFormat *pw_fmt;
-	SDL_Rect pos0;
 	int pw_bpp, pw_pitch, tmpln, i, j;
 	uint32_t pw_ucol;
 	uint8_t *pw_pixel;
 	
 	src = sprt_src->sprt_arr[0];
 	
-	pos0.x=pos0.y=0;
+	
 	
 	
 	pw_fmt = dst->format;
@@ -1212,7 +1149,7 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	if (pw_bpp!=4)
 		return;
 		
-	SDL_BlitSurface(src,0 , dst, &pos0);
+	SDL_BlitSurface(src,0 , dst, 0);
 	
 	
 	#define PW_PIXEL_SETCOL(r,g,b)  \
@@ -1254,7 +1191,7 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 
 /* applies dpos to pos in active character
  */
-void chara_active_apply_dpos_clip( chara_active *a, chara_active **all, tilemap *tm)
+void chara_active_apply_dpos_clip( chara_active *a, chara_active *all, tilemap *tm)
 {
 	a->pos.x += a->dpos.x;
 	a->pos.y += a->dpos.y;
@@ -1484,24 +1421,15 @@ world * new_world()
 	return n;
 }
 
-void world_add(world *in_world, char* script)
-{
-	return;
-}
-
-
 void chara_template_add(world *in_world, char* script)
 {
 	chara_template *tmp=in_world->chara_temps;
-	
-	
 	
 	if (!tmp)
 	{
 		in_world->chara_temps = new_chara_template(in_world, script);
 		return;
 	}
-	
 	while (tmp)
 	{
 		if (!tmp->next)
@@ -1509,12 +1437,8 @@ void chara_template_add(world *in_world, char* script)
 			tmp->next = new_chara_template(in_world, script);
 			break;
 		}
-		
 		tmp = tmp->next;
 	}
-		
-	
-	return;
 }
 
 chara_template * get_chara_template(world *in_world, char* name)
@@ -1739,14 +1663,13 @@ tilemap * load_tilemap_from_json(char *fn)
 	char *dat=0;
 	tilemap *tm = 0;
 	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0;
-	SDL_Rect tmp_clip_rect, pos0;
+	SDL_Rect tmp_clip_rect;
 	SDL_Surface **tilesets;
 	char tmp_str[256];
 	
 	jsmn_parser p;
 	jsmntok_t *t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * 4096);
 	
-	printf("opening %s\n",fn);
 	fp = fopen(fn,"r");
 	
 	if (!fp)
@@ -1767,9 +1690,7 @@ tilemap * load_tilemap_from_json(char *fn)
 	fclose(fp);
 	fp=0;
 	
-	printf("jsmn init\n");
 	jsmn_init(&p);
-	printf("jsmn parse\n");
 	r = jsmn_parse(&p, dat, ln, t, 4096);
 	
 	/* we're assuming json tilemap was made in Tiled,
@@ -1781,15 +1702,13 @@ tilemap * load_tilemap_from_json(char *fn)
 	if (r < 0)
 		goto ld_tilemap_ff_done;
 	
-	printf("creating tree\n");
 	test_tree = json_parse_mk_tree(dat, t, r);
-	printf("done\n");
 	
 	th = json_tree_get_int_from_obj(test_tree, "height");
 	tw = json_tree_get_int_from_obj(test_tree, "width");
 	tsize = json_tree_get_int_from_obj(test_tree, "tilewidth");
 	
-	printf("th %d tw %d tsize %d\n", th,tw,tsize);
+	/*printf("th %d tw %d tsize %d\n", th,tw,tsize);*/
 	
 	/* load tilesets (images), count up n tiles, cut tilesets into tiles for tilemap */
 	
@@ -1798,7 +1717,7 @@ tilemap * load_tilemap_from_json(char *fn)
 	
 	tilesets = (SDL_Surface **) malloc(sizeof(SDL_Surface *) * tmp->cnt);
 	
-	printf("tilesets cnt %d\n", tmp->cnt);
+	/*printf("tilesets cnt %d\n", tmp->cnt);*/
 	
 	for (i=0;i<tmp->cnt;i++)
 	{
@@ -1808,24 +1727,21 @@ tilemap * load_tilemap_from_json(char *fn)
 		
 		json_tree_get_str_from_obj(tmp1,"image",tmp_str);
 		
-		printf("%s %d %d\n", tmp_str, tmpw,tmph);
+		/*printf("%s %d %d\n", tmp_str, tmpw,tmph);*/
 		tilesets[i] = IMG_Load(tmp_str);
-		printf("tile set %d loaded!\n", i);
+		/*printf("tile set %d loaded!\n", i);*/
 		ntiles += tmpw * tmph;
 	}
 	
 	tm = new_tilemap(tw,th,ntiles);
 	tm->tsize = tsize;
 	
-	printf("ntiles %d\n", ntiles);
+	/*printf("ntiles %d\n", ntiles);*/
 	
 	tmp_clip_rect.w = tsize;
 	tmp_clip_rect.h = tsize;
 	tmp_clip_rect.x = 0;
 	tmp_clip_rect.y = 0;
-	
-	pos0.x=0;
-	pos0.y=0;
 	
 	ts_load_cur_tile=0;
 	
@@ -1844,7 +1760,13 @@ tilemap * load_tilemap_from_json(char *fn)
 				
 				SDL_BlitSurface(tilesets[i], &tmp_clip_rect, tm->tiles[ts_load_cur_tile], 0);
 				
-				printf("filled tile %d %d at %d %d in tileset %d %p\n", ts_load_cur_tile, tm->tiles[ts_load_cur_tile],tmp_clip_rect.x,tmp_clip_rect.y, i,tilesets[i]);
+				/*printf("filled tile %d %d at %d %d in tileset %d %p\n",
+					ts_load_cur_tile,
+					tm->tiles[ts_load_cur_tile],
+					tmp_clip_rect.x,
+					tmp_clip_rect.y,
+					i,
+					tilesets[i]);*/
 				
 				tmp_clip_rect.x+=tsize;
 				
@@ -1883,92 +1805,193 @@ tilemap * load_tilemap_from_json(char *fn)
 
 room * new_room(char* script)
 {
-	int buf_tmp, arg_idx, is_int[8], nargs, ln, i;
-	char buf[8][256];
+	QUICK_PARSE_DECLARATIONS
+	
 	room *n = (room*) malloc(sizeof(room));
 	
 	n->main;
 	n->mult;
-	
-	n->exits = 0;
-	n->nexits=0;
-	
-	n->chara_place = 0;
-	n->nchara = 0;
-	
 	n->bgm_id=-1;
-	
 	n->next = 0;
+	n->placers = 0;
+	n->name[0]='\0';
 	
+	QUICK_PARSE_BEFORE_LINE
 	
-	buf[0][0]=buf[1][0]=buf[2][0]=buf[3][0] =
-		buf[4][0]=buf[5][0]=buf[6][0]=buf[7][0] = '\0';
-	
-	is_int[0]=is_int[1]=is_int[2]=is_int[3] = 
-		is_int[4]=is_int[5]=is_int[6]=is_int[7] = 1;
-	
-	buf_tmp=0;
-	arg_idx=0;
-	ln=strlen(script);
-	
-	nargs=0;
-	
-	i=0;
-	while (i<ln)
-	{
-		if (script[i] == ' ' || script[i] == '\n' || script[i] == '\t')
-		{
-			if (buf_tmp!=0)
-			{
-				buf_tmp=0;
-				
-				if (arg_idx<7)
-					arg_idx++;
-			}
-		}
-		else if (script[i] == ';')
-		{		
-			if (!strcmp(buf[0], "room") && /* room main main.json light.json; */
-					nargs==6 &&
+			if (	nargs==3 &&
 					!is_int[0] &&
 					!is_int[1] &&
 					!is_int[2] &&
-					!is_int[3] &&
-					strlen(buf[1]) < 31)
+					strlen(buf[0]) < 31 &&
+					strlen(buf[1]) < 255 &&
+					strlen(buf[2]) < 255)
 			{
-				strcpy(n->name, buf[1]);
-				
-				n->main = load_tilemap_from_json(buf[2]);
-				
-				n->mult = load_tilemap_from_json(buf[3]);
+				strcpy(n->name, buf[0]);
+				n->main = load_tilemap_from_json(buf[1]);
+				n->mult = load_tilemap_from_json(buf[2]);
 			}
 			
-			is_int[0]=is_int[1]=is_int[2]=is_int[3]=
-				is_int[4]=is_int[5]=is_int[6]=is_int[7]=1;
-			arg_idx=buf_tmp=0;
-		}
-		else
-		{
-			if (!((script[i] == '-' && buf_tmp==0) || (script[i]>='0' && script[i]<='9')) )
-				is_int[arg_idx] = 0;
-			
-			buf[arg_idx][buf_tmp++] = script[i];
-			
-			if (buf_tmp>=256)
-				buf_tmp--;
-			
-			buf[arg_idx][buf_tmp] = '\0';
-			
-			nargs = arg_idx + 1;
-		}
-		i++;
-	}
+	QUICK_PARSE_AFTER_LINE
 	
 	return n;
 }
 
+void room_add(world *in_world, char* script)
+{
+	room *tmp=in_world->rooms;
+	
+	if (!tmp)
+	{
+		in_world->rooms = new_room(script);
+		return;
+	}
+	while (tmp)
+	{
+		if (!tmp->next)
+		{
+			tmp->next = new_room(script);
+			break;
+		}
+		tmp = tmp->next;
+	}
+}
+
+room * get_room(world *in_world, char *a)
+{
+	room *tmp = in_world->rooms;
+	
+	while (tmp)
+	{
+		if (!strcmp(a, tmp->name))
+			return tmp;
+		tmp=tmp->next;
+	}
+	return 0;
+}
+
+int get_room_idx(world *in_world, char *a)
+{
+	room *tmp = in_world->rooms;
+	int i=0;
+	
+	while (tmp)
+	{
+		if (!strcmp(a, tmp->name))
+			return i;
+		tmp=tmp->next;
+		i++;
+	}
+	return -1;
+}
+
+room * get_room_by_idx(world *in_world, int a)
+{
+	room *tmp = in_world->rooms;
+	int i=0;
+	
+	while (tmp)
+	{
+		if (a==i)
+			return tmp;
+		tmp=tmp->next;
+		i++;
+	}
+	return 0;
+}
 
 
+void new_placer(world *in_world, char * script)
+{
+	QUICK_PARSE_DECLARATIONS
+	
+	placer *n = (placer*) malloc(sizeof(placer));
+	chara_template *ctmp;
+	room *rtmp;
+	
+	n->c=0; /* if null, not a chara temp placer. */
+	n->c_start_mode=0; /* starting mode for chara_template.  if < 0, don't use. */
+	n->playr=0;/* if < 0, not a player placer. if -2, npc.  more codes may be added. */
+	n->type = PLACER_NPC;
+	n->to; /* exit */
+	
+	n->pos.x=n->pos.y=n->pos.z=0;
+	
+	n->next=0;
+	
+	
+	QUICK_PARSE_BEFORE_LINE
+	
+			/* npc|player|exit <chara template>|<room name (-> int # )|player #> x y z */
+	
+			/* FIXME: all placers need starting mode specifier.
+			 * 			exits need chara templates still.
+			 */
+			
+			if (	nargs==6 &&
+					!strcmp("npc",buf[0]) &&
+					is_int[2] && is_int[3] && is_int[4])
+			{
+				n->type = PLACER_NPC;
+				n->c = get_chara_template(in_world, buf[1]);
+				n->pos.x = atoi(buf[2]);
+				n->pos.y = atoi(buf[3]);
+				n->pos.z = atoi(buf[4]);
+				rtmp = get_room(in_world, buf[5]);
+			}
+			else if (	nargs==6 &&
+					!strcmp("player",buf[0]) &&
+					is_int[1] && is_int[2] && is_int[3] && is_int[4])
+			{
+				n->type = PLACER_PLAYER;
+				n->playr = atoi(buf[1]);
+				n->pos.x = atoi(buf[2]);
+				n->pos.y = atoi(buf[3]);
+				n->pos.z = atoi(buf[4]);
+				rtmp = get_room(in_world, buf[5]);
+			}
+			else if (	nargs==6 &&
+					!strcmp("exit",buf[0]) &&
+					is_int[2] && is_int[3] && is_int[4])
+			{
+				n->type = PLACER_EXIT;
+				n->to = get_room_idx(in_world, buf[1]);
+				n->pos.x = atoi(buf[2]);
+				n->pos.y = atoi(buf[3]);
+				n->pos.z = atoi(buf[4]);
+				rtmp = get_room(in_world, buf[5]);
+			}
+			
+	QUICK_PARSE_AFTER_LINE
+	
+	
+	if (rtmp)
+	{
+		placer *ptmp=rtmp->placers;
+	
+		if (!ptmp)
+		{
+			rtmp->placers = n;
+			return;
+		}
+		while (ptmp)
+		{
+			if (!ptmp->next)
+			{
+				ptmp->next = n;
+				break;
+			}
+			ptmp = ptmp->next;
+		}
+	}
+	else
+		free(n);
+}
+
+void placer_add(world *in_world, char* script)
+{
+	new_placer(in_world, script);
+	/* this automatically handles adding new structure */
+}
 
 
 int main(void)
@@ -1979,7 +2002,7 @@ int main(void)
 		k_w=0, k_a=0, k_s=0,
 		k_d=0,k_space=0, tick_shad = -1, run = 1,
 		game_mode, cntr_a, cntr_b, cntr_c, game_mode_first_loop,
-		key_tmp;
+		key_tmp, player_focus, nplayers;
 
 	/* character jump table.  this holds the "arc" for jumping.
 	 * it's only half of it, and there's code below that finishes
@@ -1992,17 +2015,18 @@ int main(void)
 	SDL_Surface *main_display, *tmpd;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
-	SDL_Rect 	pos0;
 	sprite  *sprt_shad, *sprt_logo;
 	render_sprite_head rstest;
-	tilemap * tmaptest;
-	chara_active *actors[64], *key_wasd_cont;
+	tilemap * tmaptest, *tmap_main_select;
+	chara_active *c_active = 0, *c_a_last = 0;
 	cam testcam;
 	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar, *sprt_lhud;
 	float ch0_health=1.0;
 	ani *test_ani;
 	controller ctlr_main;
 	world test_world;
+	player players[16];
+	world *select_world;
 	
 	/* setup font */
 	SDL_Color font_default = {255,255,255,255};
@@ -2018,12 +2042,7 @@ int main(void)
 	#define SET_FADE_ON() {fader_md=0;fader_cnt=255;}
 
 	reset_controller(&ctlr_main);
-		
-	pos0.x = pos0.y = 0;
 	
-	/*tmaptest = new_tilemap(TILEMAPSIZE,TILEMAPSIZE,TILEMAPNTILES);*/
-	
-	key_wasd_cont = 0;
 	
 	reset_cam(&testcam);
 	
@@ -2053,28 +2072,15 @@ int main(void)
 	test_world.attk_frames=0;
 	test_world.dfnd_frames=0;
 	
-	printf("loading tilemap\n");
 	tmaptest = load_tilemap_from_json("desert-test.json");
-	printf("done\n");
 	
-	/*tmaptest->tiles[0] = IMG_Load("w0_t0.png");
-	tmaptest->tiles[1] = IMG_Load("w0_t1.png");
-	tmaptest->tiles[2] = IMG_Load("w0_t2.png");
-	tmaptest->tiles[3] = IMG_Load("w0_t3.png");
-	
-	tilemap_box_modify(tmaptest, 2, 0, 8, 0, 2);
-	tilemap_box_modify(tmaptest, 2, 1, 8, 1, 3);
-	tilemap_box_modify(tmaptest, 2, 2, 8, 8, 1);
-	tilemap_box_modify(tmaptest, 9, 5, 14,8, 1);*/
-	
-	/*world_add(test_world, "room main main.json light.json;");
-	/*world_add(test_world, "exit test_item main 100 300 fade;");*/
+	room_add(&test_world, "main desert-test.json desert-test.json;");
 	
 	/* load sprites */
-	printf("load sprites\n");
 	sprite_add(&test_world,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
 	sprite_add(&test_world,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
 	sprite_add(&test_world,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
+	
 	sprite_add(&test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
 	sprite_add(&test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 l_0.png;");
 	sprite_add(&test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
@@ -2084,7 +2090,23 @@ int main(void)
 	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
 	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
 	
-	printf("chara template add\n");
+	sprite_add(&test_world,"frames 1 8;name ch0_up_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 u_1.png;\
+			drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;drift 4 0 -2 0;drift 5 0 -2 0;drift 6 0 -2 0;drift 7 0 -2 0;");
+	sprite_add(&test_world,"frames 1 8;name ch0_down_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 d_1.png;\
+			drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 2 0;drift 5 0 2 0;drift 6 0 2 0;drift 7 0 2 0;");
+	sprite_add(&test_world,"frames 1 8;name ch0_left_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 l_1.png;\
+			drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 2 0 0;drift 5 2 0 0;drift 6 2 0 0;drift 7 2 0 0;");
+	sprite_add(&test_world,"frames 1 8;name ch0_right_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 r_1.png;\
+			drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;drift 4 -2 0 0;drift 5 -2 0 0;drift 6 -2 0 0;drift 7 -2 0 0;");
+		
+	
+	/* enum for each type of charas.*/
+	enum
+	{
+		CHARA_CH0,
+		CHARA_JAR
+	};
+	
 	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;\
 		gfx  0 ch0_left_move;\
 		gfx  1 ch0_left_stand;\
@@ -2093,35 +2115,25 @@ int main(void)
 		gfx  4 ch0_up_move;\
 		gfx  5 ch0_up_stand;\
 		gfx  6 ch0_down_move;\
-		gfx  7 ch0_down_stand;");
-	
+		gfx  7 ch0_down_stand;\
+		gfx  8 ch0_up_attk_basic;\
+		gfx  9 ch0_down_attk_basic;\
+		gfx  10 ch0_left_attk_basic;\
+		gfx  11 ch0_right_attk_basic;\
+		");
 	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;\
 		gfx  0 jar;");
 		
-	printf("get sprite\n");
 	
 	sprt_lhud = get_sprite(&test_world, "hud_health_l");
 	sprt_logo = get_sprite(&test_world, "logo");
 	
-	/* add test actors */
-	for (i=0;i<64;i++)
-		actors[i]=0;
-		
-	actor_cnt=64;
 	
-	printf("creating new active charas\n");
-	actors[0] = new_chara_active(get_chara_template(&test_world,"ch0"));
-	actors[0]->md=CH0_MD_STAND_D;
-	actors[0]->pos.x=50;
-	actors[0]->pos.y=-50;
-	actors[0]->pos.z=1;
+	placer_add(&test_world, "player 0 70 -70 1 main;");
+	placer_add(&test_world, "npc jar 70 -70 1 main;");
 	
-	testcam.target = actors[0];
 	
-	actors[1] = new_chara_active(get_chara_template(&test_world,"jar"));
-	actors[1]->pos.x=70;
-	actors[1]->pos.y=-50;
-	actors[1]->pos.z=1;
+	
 	
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
 	{
@@ -2171,8 +2183,6 @@ int main(void)
 	SET_FADE_IN();
 	
 	cntr_a=cntr_b=cntr_c=0;
-	
-	key_wasd_cont=actors[0];
 
 
 	/* run things: */
@@ -2320,9 +2330,7 @@ int main(void)
 				game_mode_first_loop=0;
 				
 				test_ani = new_ani("\
-				l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;\
-				n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
-				n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
+				l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
 				u 1;p 1 71 0;n;\
 				u 1;p 1 71 5;n;\
 				u 1;p 1 71 10;n;\
@@ -2349,14 +2357,7 @@ int main(void)
 				u 1;p 1 71 115;n;\
 				u 1;p 1 71 120;n;\
 				u 1;p 1 71 126;n;\
-				u 1;p 1 71 128;n;\
-				u 1;p 1 71 131;n;\
-				u 1;p 1 71 141;n;\
-				u 1;p 1 71 151;n;\
-				u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
-				u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;\
-				u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;\
-				u 2;u 3;n");
+				u 1;p 1 71 128;n;u 1;p 1 71 131;n;u 1;p 1 71 141;n;u 1;p 1 71 151;n;u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;u 2;u 3;n");
 
 				cntr_c=0;
 				
@@ -2409,6 +2410,100 @@ int main(void)
 			
 			if (cntr_c==3 && fader_cnt==255)
 			{
+				/* setup death match mode START*/
+				
+				select_world = &test_world;
+				
+				nplayers = 1;
+				
+				player_focus = 0;
+				
+				for (i=0;i<16;i++)
+				{
+					players[i].chara=0;
+					players[i].type=0;
+				}
+				
+				players[0].type=1;
+				
+				/* directly convert all chara templates in world to chara actives in c_active (linked-list)*/
+				c_active = 0;
+				c_a_last = 0;
+				
+				#define ADD_CHARA_ACTIVE(a) \
+					if (!c_active) \
+					{ \
+						c_active = a; \
+						c_a_last=a; \
+					} \
+					else if (a) \
+					{ \
+						c_a_last->next = a; \
+						c_a_last = a; \
+					}
+						
+					
+				
+				{
+					int tmp_player_assgn = 0;
+					room *rmtmp;
+					placer *pltmp;
+					chara_active *catmp;
+					
+					/* only use room 0 for now. */
+					rmtmp = select_world->rooms;
+					
+					/* for each room */
+					
+					pltmp = rmtmp->placers;
+					/* for each placer in room */
+					
+					while (pltmp)
+					{
+						if (pltmp->type == PLACER_PLAYER && tmp_player_assgn < nplayers)
+						{			
+							catmp = new_chara_active(get_chara_template(&test_world,"ch0"));
+							catmp->md = pltmp->c_start_mode;
+							catmp->pos.x = pltmp->pos.x;
+							catmp->pos.y = pltmp->pos.y;
+							catmp->pos.z = pltmp->pos.z;
+							
+							ADD_CHARA_ACTIVE(catmp);
+							
+							players[tmp_player_assgn].chara = catmp;
+							
+							if (tmp_player_assgn == player_focus)
+								testcam.target = catmp;
+							
+							tmp_player_assgn++;
+							
+						}
+						else if (pltmp->type == PLACER_NPC)
+						{								
+							catmp = new_chara_active(pltmp->c);
+							catmp->md = pltmp->c_start_mode;
+							catmp->pos.x = pltmp->pos.x;
+							catmp->pos.y = pltmp->pos.y;
+							catmp->pos.z = pltmp->pos.z;
+							
+							ADD_CHARA_ACTIVE(catmp);
+							
+							players[tmp_player_assgn].chara = catmp;
+						}
+						pltmp=pltmp->next;
+					}
+				}
+				
+				/* set up room */
+				
+				/* assign tilemap ptrs */
+				tmap_main_select = select_world->rooms->main;
+				
+				
+				/* select bgm */
+				
+				/*END*/
+				
 				game_mode_first_loop=1;
 				game_mode = MD_DEATHMATCH;
 			}
@@ -2428,76 +2523,138 @@ int main(void)
 				
 			clear_render_sprites(&rstest);
 			
-			for (i=0;i < actor_cnt;i++)
+			enum
 			{
-				if (!actors[i])
-					continue;
-					
-				switch (actors[i]->base->type)
+				CH0_MD_STAND_U,
+				CH0_MD_STAND_D,
+				CH0_MD_STAND_L,
+				CH0_MD_STAND_R,
+				
+				CH0_MD_WALK_U,
+				CH0_MD_WALK_D,
+				CH0_MD_WALK_L,
+				CH0_MD_WALK_R,
+				
+				CH0_MD_ATTK_U,
+				CH0_MD_ATTK_D,
+				CH0_MD_ATTK_L,
+				CH0_MD_ATTK_R
+			};
+			
+			
+			chara_active *catmp = c_active;
+			while (catmp)
+			{
+				switch (catmp->base->type)
 				{
 				case 0: /* CH0 */
-					j=actors[i]->md;
+					j=catmp->md;
 					
-					if ((actors[i]->md == CH0_MD_STAND_U || 
-						 actors[i]->md == CH0_MD_STAND_D || 
-						 actors[i]->md == CH0_MD_STAND_L || 
-						 actors[i]->md == CH0_MD_STAND_R || 
-						 actors[i]->md == CH0_MD_WALK_U  || 
-						 actors[i]->md == CH0_MD_WALK_D  || 
-						 actors[i]->md == CH0_MD_WALK_L  || 
-						 actors[i]->md == CH0_MD_WALK_R)  &&
-						actors[i] == key_wasd_cont &&
+					if ((catmp->md == CH0_MD_STAND_U || 
+						 catmp->md == CH0_MD_STAND_D || 
+						 catmp->md == CH0_MD_STAND_L || 
+						 catmp->md == CH0_MD_STAND_R || 
+						 catmp->md == CH0_MD_WALK_U  || 
+						 catmp->md == CH0_MD_WALK_D  || 
+						 catmp->md == CH0_MD_WALK_L  || 
+						 catmp->md == CH0_MD_WALK_R)  &&
+						 players[player_focus].chara == catmp && 
 						cntr_c <= 0  )
 					{
 						if (ctlr_main.up)
-							actors[i]->md = CH0_MD_WALK_U;
+							catmp->md = CH0_MD_WALK_U;
 						if (ctlr_main.down)
-							actors[i]->md = CH0_MD_WALK_D;
+							catmp->md = CH0_MD_WALK_D;
 						if (ctlr_main.left)
-							actors[i]->md = CH0_MD_WALK_L;
+							catmp->md = CH0_MD_WALK_L;
 						if (ctlr_main.right)
-							actors[i]->md = CH0_MD_WALK_R;
+							catmp->md = CH0_MD_WALK_R;
 						
 						if (!ctlr_main.up &&
 							!ctlr_main.down &&
 							!ctlr_main.left &&
 							!ctlr_main.right)
-							switch (actors[i]->md)
+							switch (catmp->md)
 							{
-							case CH0_MD_WALK_U: actors[i]->md=CH0_MD_STAND_U;break;
-							case CH0_MD_WALK_D: actors[i]->md=CH0_MD_STAND_D;break;
-							case CH0_MD_WALK_L: actors[i]->md=CH0_MD_STAND_L;break;
-							case CH0_MD_WALK_R: actors[i]->md=CH0_MD_STAND_R;break;
+							case CH0_MD_WALK_U: catmp->md=CH0_MD_STAND_U;break;
+							case CH0_MD_WALK_D: catmp->md=CH0_MD_STAND_D;break;
+							case CH0_MD_WALK_L: catmp->md=CH0_MD_STAND_L;break;
+							case CH0_MD_WALK_R: catmp->md=CH0_MD_STAND_R;break;
 							}
+						
+						if (ctlr_main.attk_a && ctlr_main.up)
+						{
+							catmp->md = CH0_MD_ATTK_U;
+							catmp->cntr[0] = 10;
+						}
+						else if (ctlr_main.attk_a && ctlr_main.down)
+						{
+							catmp->md = CH0_MD_ATTK_D;
+							catmp->cntr[0] = 10;
+						}
+						else if (ctlr_main.attk_a && ctlr_main.left)
+						{
+							catmp->md = CH0_MD_ATTK_L;
+							catmp->cntr[0] = 10;
+						}
+						else if (ctlr_main.attk_a && ctlr_main.right)
+						{
+							catmp->md = CH0_MD_ATTK_R;
+							catmp->cntr[0] = 10;
+						}
+					}
+					else if (catmp->md == CH0_MD_ATTK_U)
+					{
+						if (--catmp->cntr[0] <= 0)
+							catmp->md=CH0_MD_STAND_U;
+					}
+					else if (catmp->md == CH0_MD_ATTK_D)
+					{
+						if (--catmp->cntr[0] <= 0)
+							catmp->md=CH0_MD_STAND_D;
+					}
+					else if (catmp->md == CH0_MD_ATTK_L)
+					{
+						if (--catmp->cntr[0] <= 0)
+							catmp->md=CH0_MD_STAND_L;
+					}
+					else if (catmp->md == CH0_MD_ATTK_R)
+					{
+						if (--catmp->cntr[0] <= 0)
+							catmp->md=CH0_MD_STAND_R;
 					}
 					
 					/* add sprite according to mode */
 					{
 						sprite_active *tmp_add_sprt = 0;
 						
-						switch(actors[i]->md)
-						{case CH0_MD_STAND_U: tmp_add_sprt = actors[i]->gfx[5]; break;
-						case CH0_MD_STAND_D:  tmp_add_sprt = actors[i]->gfx[7]; break;
-						case CH0_MD_STAND_L:  tmp_add_sprt = actors[i]->gfx[1]; break;
-						case CH0_MD_STAND_R:  tmp_add_sprt = actors[i]->gfx[3]; break;
-						case CH0_MD_WALK_U:   tmp_add_sprt = actors[i]->gfx[4]; break;
-						case CH0_MD_WALK_D:   tmp_add_sprt = actors[i]->gfx[6]; break;
-						case CH0_MD_WALK_L:   tmp_add_sprt = actors[i]->gfx[0]; break;
-						case CH0_MD_WALK_R:   tmp_add_sprt = actors[i]->gfx[2]; break;}
+						switch(catmp->md)
+						{case CH0_MD_STAND_U: tmp_add_sprt = catmp->gfx[5]; break;
+						case CH0_MD_STAND_D:  tmp_add_sprt = catmp->gfx[7]; break;
+						case CH0_MD_STAND_L:  tmp_add_sprt = catmp->gfx[1]; break;
+						case CH0_MD_STAND_R:  tmp_add_sprt = catmp->gfx[3]; break;
+						case CH0_MD_WALK_U:   tmp_add_sprt = catmp->gfx[4]; break;
+						case CH0_MD_WALK_D:   tmp_add_sprt = catmp->gfx[6]; break;
+						case CH0_MD_WALK_L:   tmp_add_sprt = catmp->gfx[0]; break;
+						case CH0_MD_WALK_R:   tmp_add_sprt = catmp->gfx[2]; break;
+						case CH0_MD_ATTK_U:   tmp_add_sprt = catmp->gfx[8]; break;
+						case CH0_MD_ATTK_D:   tmp_add_sprt = catmp->gfx[9]; break;
+						case CH0_MD_ATTK_L:   tmp_add_sprt = catmp->gfx[10]; break;
+						case CH0_MD_ATTK_R:   tmp_add_sprt = catmp->gfx[11]; break;}
 						
 						
 						/* add sprite */
 						if (tmp_add_sprt)
 						{
 							/* mode changed? reset sprite animation */
-							if (j!=actors[i]->md)
+							if (j!=catmp->md)
 								reset_sprite_active(tmp_add_sprt);
 							
 							/* apply sprite drift at frame to dpos */
-							apply_dpos_chara_sprite_active(actors[i], tmp_add_sprt);
+							apply_dpos_chara_sprite_active(catmp, tmp_add_sprt);
 							
 							/* apply dpos to pos */
-							chara_active_apply_dpos_clip(actors[i], actors, tmaptest);
+							chara_active_apply_dpos_clip(catmp, catmp, tmaptest);
 							
 							
 							
@@ -2507,33 +2664,37 @@ int main(void)
 								tmp_add_sprt,
 								0,  
 								&testcam, 
-								actors[i]->pos.x, 
-								actors[i]->pos.y, 
-								actors[i]->pos.z);
+								catmp->pos.x, 
+								catmp->pos.y, 
+								catmp->pos.z);
 							
 							
 							/* step sprite */
 							step_sprite_active(tmp_add_sprt);
 						}
 					}
+					
+					
+					
 					break;
 					
 				case 1: /* jar */
 					{
-						sprite_active *tmp_add_sprt = actors[i]->gfx[0];
+						sprite_active *tmp_add_sprt = catmp->gfx[0];
 						
 						add_sprite_auto_shadow(
 							&rstest,
 							tmp_add_sprt,
 							0,
 							&testcam, 
-							actors[i]->pos.x, 
-							actors[i]->pos.y, 
-							actors[i]->pos.z);
+							catmp->pos.x, 
+							catmp->pos.y, 
+							catmp->pos.z);
 					}
 						
 					break;
 				}
+				catmp=catmp->next;
 			}
 			
 			/* start render process: */
@@ -2542,7 +2703,7 @@ int main(void)
 			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0,0,0,255 ) );
 			
 			/* render tile map */
-			render_tilemap(tmpd, tmaptest, &testcam);
+			render_tilemap(tmpd, tmap_main_select, &testcam);
 		
 			/* render sprites from render sprite list */
 			render_rsprite_list(tmpd, &rstest, tick_shad);
@@ -2579,7 +2740,7 @@ int main(void)
 		
 		/* copy framebuffer to surface of window.  update window. */
 		
-		SDL_BlitSurface(tmpd,0 , main_display, &pos0);
+		SDL_BlitSurface(tmpd,0 , main_display, 0);
 
 		SDL_SetSurfaceAlphaMod( tmpd, 255-fader_cnt );
 

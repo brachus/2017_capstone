@@ -314,6 +314,7 @@ typedef struct chara_active
 	 * with specific weapon, etc.
 	 */
 	int md;
+	int md_prev;
 	
 	/* this is stepped along a static var in chara_active. */
 	int id;
@@ -342,7 +343,8 @@ typedef struct chara_active
 	
 	struct room *in_room;
 	
-	
+	int info[8];/* generic info for charas to hold.  exits use [0] to hold dst room. */
+	int cntr[8];
 	
 	struct chara_active *next;
 	
@@ -378,6 +380,27 @@ typedef struct rexit
 	
 } rexit;
 
+enum
+{
+	PLACER_PLAYER,
+	PLACER_NPC,
+	PLACER_EXIT
+};
+
+typedef struct placer
+{
+	chara_template *c; /* if null, not a chara temp placer. */
+	int c_start_mode; /* starting mode for chara_template.  if < 0, don't use. */
+	int playr;/* if < 0, not a player placer. if -2, npc.  more codes may be added. */
+	int type;
+	
+	int to; /* exit ? */
+	
+	xyz pos;
+	
+	struct placer *next;
+} placer;
+
 typedef struct room
 {
 	char name[32];
@@ -390,18 +413,14 @@ typedef struct room
 	 * with spotty lighting.
 	 */
 	
-	/* exits */
-	rexit *exits; /* not a linked list */
-	int nexits;
-	
-	/* for item, npc placement, pc placement, etc. */
-	chara_template **chara_place; /* not a linked list */
-	int nchara;
+	/* this handles player/npc/chara placement*/
+	placer *placers;
 	
 	int bgm_id;
 	
 	struct room *next;
 } room;
+
 
 typedef struct world
 {
@@ -418,3 +437,9 @@ typedef struct world
 	action_frame *dfnd_frames;
 	
 } world;
+
+typedef struct player
+{
+	chara_active *chara;
+	int type; /* 0 CPU | 1 HUMAN */
+} player;
