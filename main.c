@@ -166,18 +166,28 @@ sprite *new_sprite(char *script)
 	n->attk_frame_start=0;
 	n->attk_frame.cntr=0;
 	n->attk_frame.id=0;
+	n->attk_frame.type=0;
 	n->attk_frame.next=0;
-	n->attk_frame.x=0;
-	n->attk_frame.y=0;
+	n->attk_frame.pos.x=0;
+	n->attk_frame.pos.y=0;
+	n->attk_frame.pos.z=0;
+	n->attk_frame.target.x=0;
+	n->attk_frame.target.y=0;
+	n->attk_frame.target.z=0;
 	n->attk_frame.w=0;
 	n->attk_frame.h=0;
 	n->attk_frame.z=0;
 	n->dfnd_frame_start;
 	n->dfnd_frame.cntr=0;
 	n->dfnd_frame.id=0;
+	n->dfnd_frame.type=0;
 	n->dfnd_frame.next=0;
-	n->dfnd_frame.x=0;
-	n->dfnd_frame.y=0;
+	n->dfnd_frame.pos.x=0;
+	n->dfnd_frame.pos.y=0;
+	n->dfnd_frame.pos.z=0;
+	n->dfnd_frame.target.x=0;
+	n->dfnd_frame.target.y=0;
+	n->dfnd_frame.target.z=0;
 	n->dfnd_frame.w=0;
 	n->dfnd_frame.h=0;
 	n->dfnd_frame.z=0;
@@ -298,8 +308,10 @@ sprite *new_sprite(char *script)
 				is_int[4] &&
 				is_int[5]) /*attk_frame_bbox <h> <w> <z>;*/
 		{
-			n->attk_frame.x=atoi(buf[1]);
-			n->attk_frame.y=atoi(buf[2]);
+			n->attk_frame.pos.x=atoi(buf[1]);
+			n->attk_frame.pos.y=atoi(buf[2]);
+			n->attk_frame.pos.z=1;
+			
 			n->attk_frame.h=atoi(buf[3]);
 			n->attk_frame.w=atoi(buf[4]);
 			n->attk_frame.z=atoi(buf[5]);
@@ -326,8 +338,11 @@ sprite *new_sprite(char *script)
 				is_int[4] &&
 				is_int[5]) /* dfnd_frame_bbox <h> <w> <z>;*/
 		{
-			n->dfnd_frame.x=atoi(buf[1]);
-			n->dfnd_frame.y=atoi(buf[2]);
+			
+			n->dfnd_frame.pos.x=atoi(buf[1]);
+			n->dfnd_frame.pos.y=atoi(buf[2]);
+			n->dfnd_frame.pos.z=1;
+			
 			n->dfnd_frame.h=atoi(buf[3]);
 			n->dfnd_frame.w=atoi(buf[4]);
 			n->dfnd_frame.z=atoi(buf[5]);
@@ -1239,6 +1254,18 @@ void reset_controller(controller *a)
 	a->attk_c = 0;
 	a->we = 0;
 	a->inv = 0;
+	
+	a->tap_up = 0;
+	a->tap_down = 0;
+	a->tap_left = 0;
+	a->tap_right = 0;
+	a->tap_jump = 0;
+	a->tap_attk_a = 0;
+	a->tap_attk_b = 0;
+	a->tap_attk_c = 0;
+	a->tap_we = 0;
+	a->tap_inv = 0;
+	
 	a->key_up = 0;
 	a->key_down = 0;
 	a->key_left = 0;
@@ -1354,43 +1381,44 @@ int keys_null(int a[8])
 
 void ctlr_update(int a[8], controller *ctlr)
 {
-	int i;
+	int i, j;
 	
-	ctlr->up=
-	ctlr->down=
-	ctlr->left=
-	ctlr->right=
-	ctlr->jump=
-	ctlr->attk_a=
-	ctlr->attk_b=
-	ctlr->attk_c=
-	ctlr->we=
-	ctlr->inv=0;
+	ctlr->tap_up=
+	ctlr->tap_down=
+	ctlr->tap_left=
+	ctlr->tap_right=
+	ctlr->tap_jump=
+	ctlr->tap_attk_a=
+	ctlr->tap_attk_b=
+	ctlr->tap_attk_c=
+	ctlr->tap_we=
+	ctlr->tap_inv=0;
 	
-	for (i=0;i<8;i++)
-	{
-		if (a[i] == ctlr->key_up)
-			ctlr->up=1;
-		else if (a[i] == ctlr->key_down)
-			ctlr->down=1;
-		else if (a[i] == ctlr->key_left)
-			ctlr->left=1;
-		else if (a[i] == ctlr->key_right)
-			ctlr->right=1;
-		else if (a[i] == ctlr->key_jump)
-			ctlr->jump=1;
-		else if (a[i] == ctlr->key_attk_a)
-			ctlr->attk_a=1;
-		else if (a[i] == ctlr->key_attk_b)
-			ctlr->attk_b=1;
-		else if (a[i] == ctlr->key_attk_c)
-			ctlr->attk_c=1;
-		else if (a[i] == ctlr->key_we)
-			ctlr->we=1;
-		else if (a[i] == ctlr->key_inv)
-			ctlr->inv=1;
-			
-	}
+	#define DO_CHECK_KEY(aa,b,c) \
+		j=0; \
+		for (i=0;i<8;i++) \
+			if (a[i] == aa) \
+			{ \
+				j=1; \
+				if (!c) \
+					b=1; \
+				c=1; \
+				break; \
+			} \
+		if (!j) \
+			c=0;
+	
+	DO_CHECK_KEY(ctlr->key_up,ctlr->tap_up,ctlr->up);
+	DO_CHECK_KEY(ctlr->key_down,ctlr->tap_down,ctlr->down);
+	DO_CHECK_KEY(ctlr->key_left,ctlr->tap_left,ctlr->left);
+	DO_CHECK_KEY(ctlr->key_right,ctlr->tap_right,ctlr->right);
+	DO_CHECK_KEY(ctlr->key_jump,ctlr->tap_jump,ctlr->jump);
+	DO_CHECK_KEY(ctlr->key_attk_a,ctlr->tap_attk_a,ctlr->attk_a);
+	DO_CHECK_KEY(ctlr->key_attk_b,ctlr->tap_attk_b,ctlr->attk_b);
+	DO_CHECK_KEY(ctlr->key_attk_c,ctlr->tap_attk_c,ctlr->attk_c);
+	DO_CHECK_KEY(ctlr->key_we,ctlr->tap_we,ctlr->we);
+	DO_CHECK_KEY(ctlr->key_inv,ctlr->tap_inv,ctlr->inv);
+	
 }
 
 void reset_sprite_active(sprite_active *a)
@@ -1989,10 +2017,84 @@ void new_placer(world *in_world, char * script)
 
 void placer_add(world *in_world, char* script)
 {
-	new_placer(in_world, script);
-	/* this automatically handles adding new structure */
+	new_placer(in_world, script); /* this automatically handles adding new structure */
 }
 
+
+void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_active *ca, sprite_active *sa)
+{
+	action_frame *tmp;
+	
+	/* from given active sprite, if on attack frame start */
+	if (sa->cntr == 0 && sa->cur == sa->base->attk_frame_start)
+	{
+		tmp=af_list_head->next;
+		
+		if (!tmp)
+			tmp=af_list_head;
+		
+		while (tmp)
+		{
+			if (tmp->owner==ca && tmp->source==sa)
+			{
+				tmp->cntr--;
+			}
+			else if (!tmp->next)
+			{
+				tmp->next = (action_frame*) malloc(sizeof(action_frame));
+				tmp=tmp->next;
+				
+				tmp->next=0;
+				tmp->owner = ca;
+				tmp->source = sa;
+				tmp->cntr = sa->base->attk_frame.cntr + 1;
+				tmp->type = sa->base->attk_frame.type;
+				tmp->pos.x=ca->pos.x + sa->base->attk_frame.pos.x;
+				tmp->pos.y=ca->pos.y + sa->base->attk_frame.pos.y;
+				tmp->pos.z=ca->pos.z + sa->base->attk_frame.pos.z;
+				tmp->w = sa->base->attk_frame.w;
+				tmp->h = sa->base->attk_frame.h;
+				tmp->z = sa->base->attk_frame.z;
+				tmp->pos.x = sa->base->attk_frame.target.x;
+				tmp->pos.y = sa->base->attk_frame.target.y;
+				tmp->pos.z = sa->base->attk_frame.target.z;
+				
+				break;
+			}
+			tmp=tmp->next;
+		}
+	}
+}
+
+void action_frame_check_if_hit(action_frame *af_list_head, chara_active *ca)
+{
+	action_frame *hitlist[32];
+}
+
+void action_frame_clear_chara(action_frame *af_list_head, chara_active *ca)
+{
+	action_frame *tmp = af_list_head->next, *prev=0;
+	
+	while (tmp)
+	{
+		if (tmp->owner == ca)
+		{
+			if (prev)
+			{
+				prev->next = tmp->next;
+				free(tmp);
+				tmp=prev;
+			}
+			else
+			{
+				af_list_head->next = tmp->next;
+				free(tmp);
+				tmp=af_list_head;
+			}
+		}
+		tmp=tmp->next;
+	}
+}
 
 int main(void)
 {
@@ -2017,7 +2119,7 @@ int main(void)
 	SDL_Rect 	pos;
 	sprite  *sprt_shad, *sprt_logo;
 	render_sprite_head rstest;
-	tilemap * tmaptest, *tmap_main_select;
+	tilemap *tmap_main_select;
 	chara_active *c_active = 0, *c_a_last = 0;
 	cam testcam;
 	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar, *sprt_lhud;
@@ -2027,6 +2129,9 @@ int main(void)
 	world test_world;
 	player players[16];
 	world *select_world;
+	action_frame aframe_list;
+	
+	aframe_list.next=0;
 	
 	/* setup font */
 	SDL_Color font_default = {255,255,255,255};
@@ -2048,7 +2153,6 @@ int main(void)
 	
 	rstest.next = 0;
 	clear_render_sprites(&rstest);
-	/*clear_tilemap(tmaptest);*/
 
 	/* mirror the character jump table, because i'm too lazy */
 	j=-1;
@@ -2072,8 +2176,6 @@ int main(void)
 	test_world.attk_frames=0;
 	test_world.dfnd_frames=0;
 	
-	tmaptest = load_tilemap_from_json("desert-test.json");
-	
 	room_add(&test_world, "main desert-test.json desert-test.json;");
 	
 	/* load sprites */
@@ -2090,14 +2192,10 @@ int main(void)
 	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
 	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
 	
-	sprite_add(&test_world,"frames 1 8;name ch0_up_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 u_1.png;\
-			drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;drift 4 0 -2 0;drift 5 0 -2 0;drift 6 0 -2 0;drift 7 0 -2 0;");
-	sprite_add(&test_world,"frames 1 8;name ch0_down_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 d_1.png;\
-			drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 2 0;drift 5 0 2 0;drift 6 0 2 0;drift 7 0 2 0;");
-	sprite_add(&test_world,"frames 1 8;name ch0_left_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 l_1.png;\
-			drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 2 0 0;drift 5 2 0 0;drift 6 2 0 0;drift 7 2 0 0;");
-	sprite_add(&test_world,"frames 1 8;name ch0_right_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 8;loop 0;img 0 r_1.png;\
-			drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;drift 4 -2 0 0;drift 5 -2 0 0;drift 6 -2 0 0;drift 7 -2 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 u_1.png;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 d_1.png; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 l_1.png; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 r_1.png;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
 		
 	
 	/* enum for each type of charas.*/
@@ -2441,7 +2539,6 @@ int main(void)
 						c_a_last->next = a; \
 						c_a_last = a; \
 					}
-						
 					
 				
 				{
@@ -2582,25 +2679,17 @@ int main(void)
 							case CH0_MD_WALK_R: catmp->md=CH0_MD_STAND_R;break;
 							}
 						
-						if (ctlr_main.attk_a && ctlr_main.up)
+						if (ctlr_main.tap_attk_a)
 						{
-							catmp->md = CH0_MD_ATTK_U;
-							catmp->cntr[0] = 10;
-						}
-						else if (ctlr_main.attk_a && ctlr_main.down)
-						{
-							catmp->md = CH0_MD_ATTK_D;
-							catmp->cntr[0] = 10;
-						}
-						else if (ctlr_main.attk_a && ctlr_main.left)
-						{
-							catmp->md = CH0_MD_ATTK_L;
-							catmp->cntr[0] = 10;
-						}
-						else if (ctlr_main.attk_a && ctlr_main.right)
-						{
-							catmp->md = CH0_MD_ATTK_R;
-							catmp->cntr[0] = 10;
+							if (catmp->md == CH0_MD_WALK_U || catmp->md == CH0_MD_STAND_U)
+								catmp->md = CH0_MD_ATTK_U;
+							else if (catmp->md == CH0_MD_WALK_D || catmp->md == CH0_MD_STAND_D)
+								catmp->md = CH0_MD_ATTK_D;
+							else if (catmp->md == CH0_MD_WALK_L || catmp->md == CH0_MD_STAND_L)
+								catmp->md = CH0_MD_ATTK_L;
+							else if (catmp->md == CH0_MD_WALK_R || catmp->md == CH0_MD_STAND_R)
+								catmp->md = CH0_MD_ATTK_R;
+							catmp->cntr[0] = 20;
 						}
 					}
 					else if (catmp->md == CH0_MD_ATTK_U)
@@ -2643,30 +2732,39 @@ int main(void)
 						case CH0_MD_ATTK_R:   tmp_add_sprt = catmp->gfx[11]; break;}
 						
 						
+						
 						/* add sprite */
 						if (tmp_add_sprt)
 						{
 							/* mode changed? reset sprite animation */
 							if (j!=catmp->md)
+							{
 								reset_sprite_active(tmp_add_sprt);
+								
+								/* clear all action frames associated with active chara */
+								action_frame_clear_chara(&aframe_list, catmp);
+							}
+								
 							
 							/* apply sprite drift at frame to dpos */
 							apply_dpos_chara_sprite_active(catmp, tmp_add_sprt);
 							
 							/* apply dpos to pos */
-							chara_active_apply_dpos_clip(catmp, catmp, tmaptest);
+							chara_active_apply_dpos_clip(catmp, catmp, tmap_main_select);
 							
+							/* tick action frame for sprite */
+							active_chara_sprite_tick_action_frame(&aframe_list, catmp, tmp_add_sprt);
 							
-							
-							/* add sprite to render list as a render sprite */
-							add_sprite_auto_shadow(
-								&rstest,
-								tmp_add_sprt,
-								0,  
-								&testcam, 
-								catmp->pos.x, 
-								catmp->pos.y, 
-								catmp->pos.z);
+							if (!(catmp->invisi_cntr > 0 && tick_shad<0))
+								/* add sprite to render list as a render sprite */
+								add_sprite_auto_shadow(
+									&rstest,
+									tmp_add_sprt,
+									0,  
+									&testcam, 
+									catmp->pos.x, 
+									catmp->pos.y, 
+									catmp->pos.z);
 							
 							
 							/* step sprite */
@@ -2674,7 +2772,8 @@ int main(void)
 						}
 					}
 					
-					
+					if (catmp->invisi_cntr>0)
+						catmp->invisi_cntr--;
 					
 					break;
 					
@@ -2711,7 +2810,13 @@ int main(void)
 			render_hud_health_left(tmpd, sprt_lhud, ch0_health, 1.0, &font_default, &font_outline, font, "Test Character");
 			
 			/* tick flicker shadow effect */
-			tick_shad *= -1;
+			switch(tick_shad)
+			{
+			case -2:tick_shad=-1;break;
+			case -1:tick_shad=0;break;
+			case 0:tick_shad=1;break;
+			case 1:tick_shad=-2;break;
+			}
 			
 			break;
 		}

@@ -24,15 +24,28 @@ typedef struct xyz
 	int z;
 } xyz;
 
+
+
 typedef struct action_frame
 {
 	int cntr; /* frames left */
 	int id;/* for intances */
-	int x; /* global coords. */
-	int y;
+	
+	struct chara_active *owner;
+	struct sprite_active *source;
+	
+	int type;
+	
+	xyz pos;
+	/* global coords.  2-21-17: this is the center of the action frame. 
+	 * in a sprite template, this is the center relative to sprite center.
+	 */
+	
 	int w;
 	int h;
 	int z;
+	
+	xyz target; /* relative to pos.  the 'direction' of the attack. */
 	
 	struct action_frame *next;
 } action_frame;
@@ -229,16 +242,23 @@ typedef struct controller
 	int down;
 	int left;
 	int right;
-	
 	int jump;
-	
 	int attk_a; /* jabs */
 	int attk_b; /* mid  */
 	int attk_c; /* full */
-	
 	int we; /* toggle through weapons */
-	
 	int inv; /* menu pop up, should be referred as "start" also. */
+	
+	int tap_up;
+	int tap_down;
+	int tap_left;
+	int tap_right;
+	int tap_jump;
+	int tap_attk_a; /* jabs */
+	int tap_attk_b; /* mid  */
+	int tap_attk_c; /* full */
+	int tap_we; /* toggle through weapons */
+	int tap_inv; /* menu pop up, should be referred as "start" also. */
 	
 	int key_up;
 	int key_down;
