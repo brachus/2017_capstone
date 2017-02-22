@@ -410,6 +410,7 @@ enum
 typedef struct placer
 {
 	chara_template *c; /* if null, not a chara temp placer. */
+	char c_name[32]; /* alternative to above */
 	int c_start_mode; /* starting mode for chara_template.  if < 0, don't use. */
 	int playr;/* if < 0, not a player placer. if -2, npc.  more codes may be added. */
 	int type;

@@ -10,27 +10,67 @@
          "width":32,
          "x":0,
          "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "height":32,
+         "name":"Object Layer 1",
+         "objects":[
+                {
+                 "height":25,
+                 "id":1,
+                 "name":"exit_00",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":40,
+                 "x":269.5,
+                 "y":298
+                }, 
+                {
+                 "height":16,
+                 "id":3,
+                 "name":"bush",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":31,
+                 "x":315.5,
+                 "y":112
+                }, 
+                {
+                 "height":16,
+                 "id":4,
+                 "name":"bush",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":31,
+                 "x":198.5,
+                 "y":174
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "width":32,
+         "x":0,
+         "y":0
         }],
+ "nextobjectid":5,
  "orientation":"orthogonal",
- "properties":
-    {
-
-    },
  "renderorder":"right-down",
  "tileheight":24,
  "tilesets":[
         {
+         "columns":10,
          "firstgid":1,
          "image":"desert_example.png",
          "imageheight":240,
          "imagewidth":240,
          "margin":0,
          "name":"desert_example",
-         "properties":
-            {
-
-            },
          "spacing":0,
+         "tilecount":100,
          "tileheight":24,
          "tilewidth":24
         }],

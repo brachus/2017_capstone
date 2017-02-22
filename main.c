@@ -1708,20 +1708,207 @@ void json_tree_get_str_from_obj(json_parse_node *a, const char *b, char *dst)
 		}
 }
 
-tilemap * load_tilemap_from_json(char *fn)
+room * get_room(world *in_world, char *a)
+{
+	room *tmp = in_world->rooms;
+	
+	while (tmp)
+	{
+		if (!strcmp(a, tmp->name))
+			return tmp;
+		tmp=tmp->next;
+	}
+	return (room *) 0;
+} 
+
+int get_room_idx(world *in_world, char *a)
+{
+	room *tmp = in_world->rooms;
+	int i=0;
+	
+	while (tmp)
+	{
+		if (!strcmp(a, tmp->name))
+			return i;
+		tmp=tmp->next;
+		i++;
+	}
+	return -1;
+}
+
+room * get_room_by_idx(world *in_world, int a)
+{
+	room *tmp = in_world->rooms;
+	int i=0;
+	
+	while (tmp)
+	{
+		if (a==i)
+			return tmp;
+		tmp=tmp->next;
+		i++;
+	}
+	return 0;
+}
+
+int new_placer(world *in_world, char * script, room *rtmp)
+{
+	QUICK_PARSE_DECLARATIONS
+	
+	placer *n = (placer*) malloc(sizeof(placer));
+	int success=0;
+	
+	n->c=0; /* if null, not a chara temp placer. */
+	n->c_name[0]='\0';
+	n->c_start_mode=0; /* starting mode for chara_template.  if < 0, don't use. */
+	n->playr=0;/* if < 0, not a player placer. if -2, npc.  more codes may be added. */
+	n->type = PLACER_NPC;
+	n->to; /* exit */
+	
+	n->pos.x=n->pos.y=n->pos.z=0;
+	
+	n->next=0;
+	
+	
+	QUICK_PARSE_BEFORE_LINE
+	
+			/* npc|player|exit <chara template>|<room name (-> int # )|player #> x y z */
+	
+			/* FIXME: all placers need starting mode specifier.
+			 * 			exits need chara templates still.
+			 */
+			
+			if (	nargs==6 &&
+					!strcmp("npc",buf[0]) &&
+					strlen(buf[1]) < 31 &&
+					is_int[2] && is_int[3] && is_int[4])
+			{
+				if (!in_world)
+				{
+					free(n);
+					return 0;
+				}
+				n->type = PLACER_NPC;
+				strcpy(n->c_name, buf[1]); /* just the name */
+				n->pos.x = atoi(buf[2]);
+				n->pos.y = atoi(buf[3]);
+				n->pos.z = atoi(buf[4]);
+				rtmp = get_room(in_world, buf[5]);
+			}
+			else if (	nargs==2 &&
+					!strcmp("npc",buf[0]) &&
+					strlen(buf[1]) < 31)
+			{
+				n->type = PLACER_NPC;
+				strcpy(n->c_name, buf[1]); /* just the name */
+			}
+			else if (	nargs==3 &&
+					!strcmp("npc",buf[0]) &&
+					strlen(buf[1]) < 31 &&
+					is_int[2])
+			{
+				n->type = PLACER_NPC;
+				strcpy(n->c_name, buf[1]); /* just the name */
+				n->c_start_mode = atoi(buf[2]);
+			}
+
+
+			else if (	nargs==6 &&
+					!strcmp("player",buf[0]) &&
+					is_int[1] && is_int[2] && is_int[3] && is_int[4])
+			{
+				if (!in_world)
+				{
+					free(n);
+					return 0;
+				}
+				n->type = PLACER_PLAYER;
+				n->playr = atoi(buf[1]);
+				n->pos.x = atoi(buf[2]);
+				n->pos.y = atoi(buf[3]);
+				n->pos.z = atoi(buf[4]);
+				rtmp = get_room(in_world, buf[5]);
+			}
+			else if (	nargs==2 &&
+					!strcmp("player",buf[0]) &&
+					is_int[1])
+			{
+				n->type = PLACER_PLAYER;
+				n->playr = atoi(buf[1]);
+			}
+
+			else if (	nargs==6 &&
+					!strcmp("exit",buf[0]) &&
+					is_int[2] && is_int[3] && is_int[4])
+			{
+				if (!in_world)
+				{
+					free(n);
+					return 0;
+				}
+				n->type = PLACER_EXIT;
+				n->to = get_room_idx(in_world, buf[1]);
+				n->pos.x = atoi(buf[2]);
+				n->pos.y = atoi(buf[3]);
+				n->pos.z = atoi(buf[4]);
+				rtmp = get_room(in_world, buf[5]);
+			}
+			else if (	nargs==2 &&
+					!strcmp("exit",buf[0]) &&
+					strlen(buf[1]) < 31)
+			{
+				n->type = PLACER_EXIT;
+				strcpy(n->c_name, buf[1]); /* just the name */
+			}
+			
+	QUICK_PARSE_AFTER_LINE
+	
+	
+	if (rtmp)
+	{
+		placer *ptmp=rtmp->placers;
+		if (!ptmp)
+		{
+			rtmp->placers = n;
+			return 1;
+		}
+		while (ptmp)
+		{
+			if (!ptmp->next)
+			{
+				ptmp->next = n;
+				success=1;
+				break;
+			}
+			ptmp = ptmp->next;
+		}
+	}
+	else
+		free(n);
+	
+	return success;
+}
+
+void placer_add(world *in_world, char* script)
+{
+	new_placer(in_world, script, 0); /* this automatically handles adding new structure */
+}
+
+tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gathering placers. */
 {
 	FILE *fp=0;
-	int ln=0, tw, th, ntiles, tsize, r, i, tmpw, tmph,
+	int ln=0, tw, th, ntiles, tsize, r, i, j, tmpw, tmph,
 		ts_load_cur_tile, tmpx, tmpy;
 	char *dat=0, tmpc;
 	tilemap *tm = 0;
-	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0;
+	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0, *tmp2=0;
 	SDL_Rect tmp_clip_rect;
 	SDL_Surface **tilesets;
 	char tmp_str[256];
 	
 	jsmn_parser p;
 	jsmntok_t *t;
+	placer *pltmp;
 	
 	fp = fopen(fn,"r");
 	
@@ -1760,9 +1947,9 @@ tilemap * load_tilemap_from_json(char *fn)
 	jsmn_init(&p);
 	r = jsmn_parse(&p, dat, ln, t, ln);
 	
-	/* we're assuming json tilemap was made in Tiled,
+	/* We're assuming json tilemap was made in Tiled ~ver 0.18.2,
 	 * has right-down render order,
-	 * has 1 layer same size as tilemap,
+	 * has at least 1 tilelayer same size as tilemap,
 	 * and image for tileset exists.
 	 */
 	
@@ -1846,25 +2033,69 @@ tilemap * load_tilemap_from_json(char *fn)
 		}
 	}
 	
-	/* load layer 1*/
+	
 	tmp = json_tree_get_node_from_obj(test_tree, "layers");
-	tmp = json_tree_get_node_from_arr(tmp, 0);
-	tmp = json_tree_get_node_from_obj(tmp, "data");
-	
-	
-	tmpx=tmpy=i=0;
-	
-	for (tmpy=0;tmpy < tm->h;tmpy++)
-		for (tmpx=0;tmpx < tm->w;tmpx++)
-			tm->arr[tmpy][tmpx] = tmp->values[i++]->int_dat - 1;
+	for (i=0;i<tmp->cnt;i++)
+	{
+		tmp1 = json_tree_get_node_from_arr(tmp, i);
+
+		json_tree_get_str_from_obj(tmp1,"type",tmp_str);
+		printf("%s\n", tmp_str);
+
+		if (!strcmp(tmp_str, "tilelayer"))
+		{		/* load first tile layer for tilemap. */
+			printf("%s: found tilelayer\n", fn);
+
+			tmp1 = json_tree_get_node_from_obj(tmp1, "data");
+			tmpx=tmpy=j=0;
+			for (tmpy=0;tmpy < tm->h;tmpy++)
+				for (tmpx=0;tmpx < tm->w;tmpx++)
+					tm->arr[tmpy][tmpx] = tmp1->values[j++]->int_dat - 1;
+		}
+
+		else if (!strcmp(tmp_str, "objectgroup"))
+		{	/* look through other layers for object layers that may be used as placers */
+			printf("%s: found objectgroup\n", fn);
+
+			tmp1 = json_tree_get_node_from_obj(tmp1, "objects");
+
+			for (j=0;j<tmp1->cnt;j++)
+			{
+				tmp2 = json_tree_get_node_from_arr(tmp1, j);
+
+				tmpx = json_tree_get_int_from_obj(tmp2, "x");
+				tmpy = json_tree_get_int_from_obj(tmp2, "y");
+				
+				tmpx += json_tree_get_int_from_obj(tmp2, "w")/2;
+				tmpy += json_tree_get_int_from_obj(tmp2, "h")/2;
+
+				json_tree_get_str_from_obj(tmp2,"name",tmp_str);
+
+				printf("  %s\n", tmp_str);
+
+				if (new_placer(0, tmp_str, inroom)==1) /* if placer added successfully */
+				{
+					pltmp = inroom->placers;
+					while (pltmp)
+					{
+						if (pltmp->next==0)
+						{
+							pltmp->pos.x = tmpx;
+							pltmp->pos.y = tmpy;
+						}
+						
+						pltmp=pltmp->next;
+					}
+
+				}
+			}
+		}
+	}
 	
 	
 	/* TODO: free test_tree, tilesets */
 	
 	ld_tilemap_ff_done:
-
-
-
 	free(t);
 	
 	if (dat)
@@ -1872,8 +2103,6 @@ tilemap * load_tilemap_from_json(char *fn)
 	
 	if (fp)
 		fclose(fp);
-	
-
 
 	return tm;
 }
@@ -1902,8 +2131,8 @@ room * new_room(char* script)
 					strlen(buf[2]) < 255)
 			{
 				strcpy(n->name, buf[0]);
-				n->tm_main = load_tilemap_from_json(buf[1]);
-				n->tm_mult = load_tilemap_from_json(buf[2]);
+				n->tm_main = load_tilemap_from_json(buf[1], n);
+				n->tm_mult = load_tilemap_from_json(buf[2], n);
 			}
 			
 	QUICK_PARSE_AFTER_LINE
@@ -1931,140 +2160,7 @@ void room_add(world *in_world, char* script)
 	}
 }
 
-room * get_room(world *in_world, char *a)
-{
-	room *tmp = in_world->rooms;
-	
-	while (tmp)
-	{
-		if (!strcmp(a, tmp->name))
-			return tmp;
-		tmp=tmp->next;
-	}
-	return 0;
-}
 
-int get_room_idx(world *in_world, char *a)
-{
-	room *tmp = in_world->rooms;
-	int i=0;
-	
-	while (tmp)
-	{
-		if (!strcmp(a, tmp->name))
-			return i;
-		tmp=tmp->next;
-		i++;
-	}
-	return -1;
-}
-
-room * get_room_by_idx(world *in_world, int a)
-{
-	room *tmp = in_world->rooms;
-	int i=0;
-	
-	while (tmp)
-	{
-		if (a==i)
-			return tmp;
-		tmp=tmp->next;
-		i++;
-	}
-	return 0;
-}
-
-
-void new_placer(world *in_world, char * script)
-{
-	QUICK_PARSE_DECLARATIONS
-	
-	placer *n = (placer*) malloc(sizeof(placer));
-	room *rtmp;
-	
-	n->c=0; /* if null, not a chara temp placer. */
-	n->c_start_mode=0; /* starting mode for chara_template.  if < 0, don't use. */
-	n->playr=0;/* if < 0, not a player placer. if -2, npc.  more codes may be added. */
-	n->type = PLACER_NPC;
-	n->to; /* exit */
-	
-	n->pos.x=n->pos.y=n->pos.z=0;
-	
-	n->next=0;
-	
-	
-	QUICK_PARSE_BEFORE_LINE
-	
-			/* npc|player|exit <chara template>|<room name (-> int # )|player #> x y z */
-	
-			/* FIXME: all placers need starting mode specifier.
-			 * 			exits need chara templates still.
-			 */
-			
-			if (	nargs==6 &&
-					!strcmp("npc",buf[0]) &&
-					is_int[2] && is_int[3] && is_int[4])
-			{
-				n->type = PLACER_NPC;
-				n->c = get_chara_template(in_world, buf[1]);
-				n->pos.x = atoi(buf[2]);
-				n->pos.y = atoi(buf[3]);
-				n->pos.z = atoi(buf[4]);
-				rtmp = get_room(in_world, buf[5]);
-			}
-			else if (	nargs==6 &&
-					!strcmp("player",buf[0]) &&
-					is_int[1] && is_int[2] && is_int[3] && is_int[4])
-			{
-				n->type = PLACER_PLAYER;
-				n->playr = atoi(buf[1]);
-				n->pos.x = atoi(buf[2]);
-				n->pos.y = atoi(buf[3]);
-				n->pos.z = atoi(buf[4]);
-				rtmp = get_room(in_world, buf[5]);
-			}
-			else if (	nargs==6 &&
-					!strcmp("exit",buf[0]) &&
-					is_int[2] && is_int[3] && is_int[4])
-			{
-				n->type = PLACER_EXIT;
-				n->to = get_room_idx(in_world, buf[1]);
-				n->pos.x = atoi(buf[2]);
-				n->pos.y = atoi(buf[3]);
-				n->pos.z = atoi(buf[4]);
-				rtmp = get_room(in_world, buf[5]);
-			}
-			
-	QUICK_PARSE_AFTER_LINE
-	
-	
-	if (rtmp)
-	{
-		placer *ptmp=rtmp->placers;
-	
-		if (!ptmp)
-		{
-			rtmp->placers = n;
-			return;
-		}
-		while (ptmp)
-		{
-			if (!ptmp->next)
-			{
-				ptmp->next = n;
-				break;
-			}
-			ptmp = ptmp->next;
-		}
-	}
-	else
-		free(n);
-}
-
-void placer_add(world *in_world, char* script)
-{
-	new_placer(in_world, script); /* this automatically handles adding new structure */
-}
 
 void show_action_frames(action_frame *af_list_head, cam *incam, SDL_Surface *s)
 {
@@ -2090,16 +2186,18 @@ void show_action_frames(action_frame *af_list_head, cam *incam, SDL_Surface *s)
 	
 	while (tmp)
 	{
+		if (tmp->cntr>0)
+		{
+			x=(tmp->owner->pos.x + tmp->pos.x) - tmp->w/2;
+			y=(tmp->owner->pos.y + tmp->pos.y) + tmp->h/2 + tmp->z;
 
-		x=tmp->owner->pos.x + tmp->pos.x - tmp->w/2;
-		y=tmp->owner->pos.y + tmp->pos.y + tmp->h/2 + tmp->z;
+			rtmp.x = (SWIDTH/2) + x - cx;
+			rtmp.y = (SHEIGHT/2) - y + cy;
+			rtmp.w = tmp->w;
+			rtmp.h = tmp->h;
 
-		rtmp.x = (SWIDTH/2) + x - cx;
-		rtmp.y = (SHEIGHT/2) - y + cy;
-		rtmp.w = tmp->w;
-		rtmp.h = tmp->h;
-
-		SDL_FillRect(s, &rtmp, 0xff00ffff);
+			SDL_FillRect(s, &rtmp, 0xff00ffff);
+		}
 
 		tmp=tmp->next;
 	}
@@ -2109,7 +2207,6 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 {
 	action_frame *tmp;
 	
-
 	/* from given active sprite, if on attack frame start */
 	if (sa->cntr == 0 && sa->cur == sa->base->attk_frame_start && sa->base->attk_frame.cntr > 0)
 	{
@@ -2121,9 +2218,8 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 		while (tmp)
 		{
 			if (tmp->owner==ca && tmp->source==sa)
-			{
 				tmp->cntr--;
-			}
+
 			else if (!tmp->next)
 			{
 				tmp->next = (action_frame*) malloc(sizeof(action_frame));
@@ -2134,9 +2230,9 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 				tmp->source = sa;
 				tmp->cntr = sa->base->attk_frame.cntr + 1;
 				tmp->type = sa->base->attk_frame.type;
-				tmp->pos.x=ca->pos.x + sa->base->attk_frame.pos.x;
-				tmp->pos.y=ca->pos.y + sa->base->attk_frame.pos.y;
-				tmp->pos.z=ca->pos.z + sa->base->attk_frame.pos.z;
+				tmp->pos.x=sa->base->attk_frame.pos.x;
+				tmp->pos.y=sa->base->attk_frame.pos.y;
+				tmp->pos.z=sa->base->attk_frame.pos.z;
 				tmp->w = sa->base->attk_frame.w;
 				tmp->h = sa->base->attk_frame.h;
 				tmp->z = sa->base->attk_frame.z;
@@ -2609,7 +2705,7 @@ int main(void)
 						}
 						else if (pltmp->type == PLACER_NPC)
 						{								
-							catmp = new_chara_active(pltmp->c);
+							catmp = new_chara_active(get_chara_template(&test_world,pltmp->c_name));
 							catmp->md = pltmp->c_start_mode;
 							catmp->pos.x = pltmp->pos.x;
 							catmp->pos.y = pltmp->pos.y;
@@ -2619,6 +2715,9 @@ int main(void)
 							
 							players[tmp_player_assgn].chara = catmp;
 						}
+
+						/* for exits, use c_name for dst room name */
+
 						pltmp=pltmp->next;
 					}
 				}
@@ -2758,7 +2857,6 @@ int main(void)
 								/* clear all action frames associated with active chara */
 								action_frame_clear_chara(&aframe_list, catmp);
 							}
-								
 							
 							/* apply sprite drift at frame to dpos */
 							apply_dpos_chara_sprite_active(catmp, tmp_add_sprt);
