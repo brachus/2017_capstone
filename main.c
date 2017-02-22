@@ -2092,7 +2092,7 @@ void show_action_frames(action_frame *af_list_head, cam *incam, SDL_Surface *s)
 	{
 
 		x=tmp->owner->pos.x + tmp->pos.x - tmp->w/2;
-		y=tmp->owner->pos.y + tmp->pos.y + tmp->h/2;
+		y=tmp->owner->pos.y + tmp->pos.y + tmp->h/2 + tmp->z;
 
 		rtmp.x = (SWIDTH/2) + x - cx;
 		rtmp.y = (SHEIGHT/2) - y + cy;
@@ -2109,7 +2109,6 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 {
 	action_frame *tmp;
 	
-	printf("%d %d==%d %d \n",sa->cntr,sa->cur,sa->base->attk_frame_start, sa->base->attk_frame.cntr);
 
 	/* from given active sprite, if on attack frame start */
 	if (sa->cntr == 0 && sa->cur == sa->base->attk_frame_start && sa->base->attk_frame.cntr > 0)
@@ -2154,7 +2153,7 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 
 void action_frame_check_if_hit(action_frame *af_list_head, chara_active *ca)
 {
-	//action_frame *hitlist[32];
+	/*action_frame *hitlist[32];*/
 }
 
 void action_frame_clear_chara(action_frame *af_list_head, chara_active *ca)
@@ -2278,10 +2277,10 @@ int main(void)
 	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
 	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;loop 0;img 0 d_0.png;");
 
-	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 u_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 2    20 20 10;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 d_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 -2 20 20 10; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -2 0 20 20 10; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 2 0 20 20 10;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 u_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 40    20 20 10;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 d_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 -40 20 20 10; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -40 0 20 20 10; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 40 0 20 20 10;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
 		
 	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;gfx  0 ch0_left_move;gfx  1 ch0_left_stand;gfx  2 ch0_right_move;gfx  3 ch0_right_stand;gfx  4 ch0_up_move;gfx  5 ch0_up_stand;gfx  6 ch0_down_move;gfx  7 ch0_down_stand;gfx  8 ch0_up_attk_basic;gfx  9 ch0_down_attk_basic;gfx  10 ch0_left_attk_basic;gfx  11 ch0_right_attk_basic;");
 	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;gfx  0 jar;");
