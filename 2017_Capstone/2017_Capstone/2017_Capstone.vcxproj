@@ -69,9 +69,11 @@
     <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\jsmn\jsmn.c" />
     <ClCompile Include="..\..\main.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\jsmn\jsmn.h" />
     <ClInclude Include="..\..\structs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

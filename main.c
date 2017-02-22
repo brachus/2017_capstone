@@ -17,6 +17,10 @@
 #endif
 
 
+#ifdef _MSC_VER
+  #pragma warning(disable: 4996 4026)
+#endif
+
 #define SWIDTH 320
 #define SHEIGHT 240
 
@@ -89,8 +93,6 @@ enum
 	SBMD_TRANS_A_IN
 };
 
-
-
 enum
 {
 	DIR_LEFT,
@@ -125,7 +127,30 @@ enum
 	ANI_NEXT
 };
 
+/* enum for each type of chara.*/
+enum
+{
+	CHARA_CH0,
+	CHARA_JAR
+};
 
+enum
+{
+	CH0_MD_STAND_U,
+	CH0_MD_STAND_D,
+	CH0_MD_STAND_L,
+	CH0_MD_STAND_R,
+				
+	CH0_MD_WALK_U,
+	CH0_MD_WALK_D,
+	CH0_MD_WALK_L,
+	CH0_MD_WALK_R,
+				
+	CH0_MD_ATTK_U,
+	CH0_MD_ATTK_D,
+	CH0_MD_ATTK_L,
+	CH0_MD_ATTK_R
+};
 
 #include "structs.h"
 
@@ -140,12 +165,10 @@ void tick_frame(int fps)
 		if (tmp>0)
 			SDL_Delay( tmp );
 	}
-		
 	else
 		first = 0;
 	prevtime = SDL_GetTicks();
 }
-
 
 sprite *new_sprite(char *script)
 {
@@ -891,7 +914,7 @@ void add_sprite_auto_shadow(
 	int y,
 	int z  )
 {
-	int i,rx,ry,bry,sx,sy,cx,cy;
+	int rx,ry,bry,sx,sy,cx,cy;
 	
 	sprite *sprt = asprt->base;
 	
@@ -1177,7 +1200,7 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	
 	PW_PIXEL_SETCOL(201,228,246);
 	
-	tmpln = a * L_HUD_HEALTH_TOPLEFT_LN;
+	tmpln = (int) (a * L_HUD_HEALTH_TOPLEFT_LN);
 	
 	
 	i=L_HUD_HEALTH_TOPLEFT_X;
@@ -1282,11 +1305,16 @@ void reset_controller(controller *a)
 int file_exists(char *fn)
 {
 	#ifdef LINUX
-	if (access(fn, F_OK) != -1)
-		return 1;
-	return 0;
+		if (access(fn, F_OK) != -1)
+			return 1;
+		return 0;
 	#else
-	return PathFileExists(fn);
+		FILE *fp;
+		fp = fopen(fn, "r");
+		if (!fp)
+			return 0;
+		fclose(fp);
+		return 1;
 	#endif
 }
 
@@ -1418,7 +1446,6 @@ void ctlr_update(int a[8], controller *ctlr)
 	DO_CHECK_KEY(ctlr->key_attk_c,ctlr->tap_attk_c,ctlr->attk_c);
 	DO_CHECK_KEY(ctlr->key_we,ctlr->tap_we,ctlr->we);
 	DO_CHECK_KEY(ctlr->key_inv,ctlr->tap_inv,ctlr->inv);
-	
 }
 
 void reset_sprite_active(sprite_active *a)
@@ -1431,7 +1458,7 @@ void reset_sprite_active(sprite_active *a)
 void apply_dpos_chara_sprite_active(chara_active *a, sprite_active *b)
 {
 	int rframe = (b->cur * b->base->intrv) + b->cntr;
-	
+
 	a->dpos.x = b->base->drift[rframe].x;
 	a->dpos.y = b->base->drift[rframe].y;
 	a->dpos.z = b->base->drift[rframe].z;
@@ -1620,7 +1647,7 @@ json_parse_node *json_parse_mk_tree(const char *json, jsmntok_t *t, int ntokens)
 			else /* must be number */
 			{
 				cur_node->int_dat = atoi(cur_node->str_dat);
-				cur_node->float_dat = atof(cur_node->str_dat);
+				cur_node->float_dat = (float) atof(cur_node->str_dat);
 				cur_node->type = JSON_PARSE_NUM;
 			}
 			free(cur_node->str_dat);
@@ -1662,10 +1689,8 @@ json_parse_node * json_tree_get_node_from_obj(json_parse_node *a, const char *b)
 
 json_parse_node * json_tree_get_node_from_arr(json_parse_node *a, int b)
 {
-	int i;
 	if (a->type != JSON_PARSE_ARR && a->type != JSON_PARSE_OBJ)
 		return 0;
-		
 	return a->values[b];
 }
 
@@ -1688,7 +1713,7 @@ tilemap * load_tilemap_from_json(char *fn)
 	FILE *fp=0;
 	int ln=0, tw, th, ntiles, tsize, r, i, tmpw, tmph,
 		ts_load_cur_tile, tmpx, tmpy;
-	char *dat=0;
+	char *dat=0, tmpc;
 	tilemap *tm = 0;
 	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0;
 	SDL_Rect tmp_clip_rect;
@@ -1696,7 +1721,7 @@ tilemap * load_tilemap_from_json(char *fn)
 	char tmp_str[256];
 	
 	jsmn_parser p;
-	jsmntok_t *t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * 4096);
+	jsmntok_t *t;
 	
 	fp = fopen(fn,"r");
 	
@@ -1710,16 +1735,30 @@ tilemap * load_tilemap_from_json(char *fn)
 		goto ld_tilemap_ff_done;
 	
 	dat = (char*) malloc(ln + 1);
+
+	t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * ln);
 	
 	rewind(fp);
 	
-	fread(dat, ln, 1, fp);
+	i=0;
+	while(i<ln)
+	{
+		tmpc=fgetc(fp);
+		if (tmpc==EOF)
+		{
+			dat[i]='\0';
+			break;
+		}
+		else
+			dat[i++] = tmpc;
+	}
+	/*fread(dat, ln, 1, fp);*/
 	
 	fclose(fp);
 	fp=0;
 	
 	jsmn_init(&p);
-	r = jsmn_parse(&p, dat, ln, t, 4096);
+	r = jsmn_parse(&p, dat, ln, t, ln);
 	
 	/* we're assuming json tilemap was made in Tiled,
 	 * has right-down render order,
@@ -1747,6 +1786,8 @@ tilemap * load_tilemap_from_json(char *fn)
 	
 	/*printf("tilesets cnt %d\n", tmp->cnt);*/
 	
+	ntiles=0;
+
 	for (i=0;i<tmp->cnt;i++)
 	{
 		tmp1 = json_tree_get_node_from_arr(tmp, i);
@@ -1762,6 +1803,7 @@ tilemap * load_tilemap_from_json(char *fn)
 	}
 	
 	tm = new_tilemap(tw,th,ntiles);
+
 	tm->tsize = tsize;
 	
 	/*printf("ntiles %d\n", ntiles);*/
@@ -1819,7 +1861,10 @@ tilemap * load_tilemap_from_json(char *fn)
 	
 	/* TODO: free test_tree, tilesets */
 	
-  ld_tilemap_ff_done:
+	ld_tilemap_ff_done:
+
+
+
 	free(t);
 	
 	if (dat)
@@ -1827,7 +1872,9 @@ tilemap * load_tilemap_from_json(char *fn)
 	
 	if (fp)
 		fclose(fp);
-		
+	
+
+
 	return tm;
 }
 
@@ -1837,8 +1884,8 @@ room * new_room(char* script)
 	
 	room *n = (room*) malloc(sizeof(room));
 	
-	n->main;
-	n->mult;
+	n->tm_main;
+	n->tm_mult;
 	n->bgm_id=-1;
 	n->next = 0;
 	n->placers = 0;
@@ -1855,8 +1902,8 @@ room * new_room(char* script)
 					strlen(buf[2]) < 255)
 			{
 				strcpy(n->name, buf[0]);
-				n->main = load_tilemap_from_json(buf[1]);
-				n->mult = load_tilemap_from_json(buf[2]);
+				n->tm_main = load_tilemap_from_json(buf[1]);
+				n->tm_mult = load_tilemap_from_json(buf[2]);
 			}
 			
 	QUICK_PARSE_AFTER_LINE
@@ -1933,7 +1980,6 @@ void new_placer(world *in_world, char * script)
 	QUICK_PARSE_DECLARATIONS
 	
 	placer *n = (placer*) malloc(sizeof(placer));
-	chara_template *ctmp;
 	room *rtmp;
 	
 	n->c=0; /* if null, not a chara temp placer. */
@@ -2020,13 +2066,53 @@ void placer_add(world *in_world, char* script)
 	new_placer(in_world, script); /* this automatically handles adding new structure */
 }
 
+void show_action_frames(action_frame *af_list_head, cam *incam, SDL_Surface *s)
+{
+	int cx,cy,x,y;
+	action_frame *tmp = af_list_head->next;
+	SDL_Rect rtmp;
+
+	/* adjust cam */
+	if (!incam)
+		cx=cy=0;
+		
+	else if (incam->target)
+	{
+		cx = incam->target->pos.x;
+		cy = incam->target->pos.y;
+	}
+	else
+	{
+		cx = incam->x; /* take into account cam bounding box here ? */
+		cy = incam->y;
+	}
+	
+	
+	while (tmp)
+	{
+
+		x=tmp->owner->pos.x + tmp->pos.x - tmp->w/2;
+		y=tmp->owner->pos.y + tmp->pos.y + tmp->h/2;
+
+		rtmp.x = (SWIDTH/2) + x - cx;
+		rtmp.y = (SHEIGHT/2) - y + cy;
+		rtmp.w = tmp->w;
+		rtmp.h = tmp->h;
+
+		SDL_FillRect(s, &rtmp, 0xff00ffff);
+
+		tmp=tmp->next;
+	}
+}
 
 void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_active *ca, sprite_active *sa)
 {
 	action_frame *tmp;
 	
+	printf("%d %d==%d %d \n",sa->cntr,sa->cur,sa->base->attk_frame_start, sa->base->attk_frame.cntr);
+
 	/* from given active sprite, if on attack frame start */
-	if (sa->cntr == 0 && sa->cur == sa->base->attk_frame_start)
+	if (sa->cntr == 0 && sa->cur == sa->base->attk_frame_start && sa->base->attk_frame.cntr > 0)
 	{
 		tmp=af_list_head->next;
 		
@@ -2068,7 +2154,7 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 
 void action_frame_check_if_hit(action_frame *af_list_head, chara_active *ca)
 {
-	action_frame *hitlist[32];
+	//action_frame *hitlist[32];
 }
 
 void action_frame_clear_chara(action_frame *af_list_head, chara_active *ca)
@@ -2100,7 +2186,7 @@ int main(void)
 {
 	/* initialize things: */
 	
-	int i, j, k, actor_cnt=0,
+	int i, j, actor_cnt=0,
 		k_w=0, k_a=0, k_s=0,
 		k_d=0,k_space=0, tick_shad = -1, run = 1,
 		game_mode, cntr_a, cntr_b, cntr_c, game_mode_first_loop,
@@ -2120,9 +2206,9 @@ int main(void)
 	sprite  *sprt_shad, *sprt_logo;
 	render_sprite_head rstest;
 	tilemap *tmap_main_select;
-	chara_active *c_active = 0, *c_a_last = 0;
+	chara_active *c_active = 0, *c_a_last = 0, *catmp;
 	cam testcam;
-	sprite *ch0_sprites_walk[4], *ch0_sprites_stand[4], *sprt_jar, *sprt_lhud;
+	sprite *sprt_lhud;
 	float ch0_health=1.0;
 	ani *test_ani;
 	controller ctlr_main;
@@ -2131,20 +2217,20 @@ int main(void)
 	world *select_world;
 	action_frame aframe_list;
 	
-	aframe_list.next=0;
-	
-	/* setup font */
 	SDL_Color font_default = {255,255,255,255};
 	SDL_Color font_outline = {32,32,128,255};
 	TTF_Font *font = 0;
-	
 
-	/* setup fader mechanism */
+	/* fader mechanism */
 	int fader_md=0, fader_cnt=0, fade_speed=(10);
+
 	#define SET_FADE_IN() {fader_md=1;fader_cnt=255;}
 	#define SET_FADE_OUT() {fader_md=2;fader_cnt=0;}
 	#define SET_FADE_OFF() {fader_md=0;fader_cnt=0;}
 	#define SET_FADE_ON() {fader_md=0;fader_cnt=255;}
+
+	/* reset action frame list */
+	aframe_list.next=0;
 
 	reset_controller(&ctlr_main);
 	
@@ -2183,49 +2269,26 @@ int main(void)
 	sprite_add(&test_world,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
 	sprite_add(&test_world,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
 	
-	sprite_add(&test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 l_0.png;");
-	sprite_add(&test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 r_0.png;");
-	sprite_add(&test_world,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 u_0.png;");
-	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;frames 2;intrv 10;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;frames 1;intrv 10;loop 0;img 0 d_0.png;");
-	
-	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 u_1.png;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 d_1.png; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 l_1.png; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;frames 1;intrv 4;loop 0;img 0 r_1.png;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;loop 0;img 0 l_0.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;loop 0;img 0 r_0.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;loop 0;img 0 u_0.png;");
+	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;loop 0;img 0 d_0.png;");
+
+	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 u_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 2    20 20 10;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 d_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 -2 20 20 10; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -2 0 20 20 10; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 2 0 20 20 10;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
 		
-	
-	/* enum for each type of charas.*/
-	enum
-	{
-		CHARA_CH0,
-		CHARA_JAR
-	};
-	
-	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;\
-		gfx  0 ch0_left_move;\
-		gfx  1 ch0_left_stand;\
-		gfx  2 ch0_right_move;\
-		gfx  3 ch0_right_stand;\
-		gfx  4 ch0_up_move;\
-		gfx  5 ch0_up_stand;\
-		gfx  6 ch0_down_move;\
-		gfx  7 ch0_down_stand;\
-		gfx  8 ch0_up_attk_basic;\
-		gfx  9 ch0_down_attk_basic;\
-		gfx  10 ch0_left_attk_basic;\
-		gfx  11 ch0_right_attk_basic;\
-		");
-	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;\
-		gfx  0 jar;");
+	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;gfx  0 ch0_left_move;gfx  1 ch0_left_stand;gfx  2 ch0_right_move;gfx  3 ch0_right_stand;gfx  4 ch0_up_move;gfx  5 ch0_up_stand;gfx  6 ch0_down_move;gfx  7 ch0_down_stand;gfx  8 ch0_up_attk_basic;gfx  9 ch0_down_attk_basic;gfx  10 ch0_left_attk_basic;gfx  11 ch0_right_attk_basic;");
+	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;gfx  0 jar;");
 		
 	
 	sprt_lhud = get_sprite(&test_world, "hud_health_l");
 	sprt_logo = get_sprite(&test_world, "logo");
-	
 	
 	placer_add(&test_world, "player 0 70 -70 1 main;");
 	placer_add(&test_world, "npc jar 70 -70 1 main;");
@@ -2392,7 +2455,6 @@ int main(void)
 				break;
 			}
 			
-			
 			break;
 		case MD_LOGO:
 			SDL_FillRect( tmpd, 0, SDL_MapRGBA( tmpd->format, 0, 0, 0, 255 ) );
@@ -2427,35 +2489,7 @@ int main(void)
 				
 				game_mode_first_loop=0;
 				
-				test_ani = new_ani("\
-				l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;\
-				u 1;p 1 71 0;n;\
-				u 1;p 1 71 5;n;\
-				u 1;p 1 71 10;n;\
-				u 1;p 1 71 15;n;\
-				u 1;p 1 71 20;n;\
-				u 1;p 1 71 25;n;\
-				u 1;p 1 71 30;n;\
-				u 1;p 1 71 35;n;\
-				u 1;p 1 71 40;n;\
-				u 1;p 1 71 45;n;\
-				u 1;p 1 71 50;n;\
-				u 1;p 1 71 55;n;\
-				u 1;p 1 71 60;n;\
-				u 1;p 1 71 65;n;\
-				u 1;p 1 71 70;n;\
-				u 1;p 1 71 75;n;\
-				u 1;p 1 71 80;n;\
-				u 1;p 1 71 85;n;\
-				u 1;p 1 71 90;n;\
-				u 1;p 1 71 95;n;\
-				u 1;p 1 71 100;n;\
-				u 1;p 1 71 105;n;\
-				u 1;p 1 71 110;n;\
-				u 1;p 1 71 115;n;\
-				u 1;p 1 71 120;n;\
-				u 1;p 1 71 126;n;\
-				u 1;p 1 71 128;n;u 1;p 1 71 131;n;u 1;p 1 71 141;n;u 1;p 1 71 151;n;u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;u 2;u 3;n");
+				test_ani = new_ani("l titlebg.png;l brawllords.png;l bl_smoke_left.png;l bl_smoke_right.png;p 0 0 0;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;n;u 1;p 1 71 0;n;u 1;p 1 71 5;n;u 1;p 1 71 10;n;u 1;p 1 71 15;n;u 1;p 1 71 20;n;u 1;p 1 71 25;n;u 1;p 1 71 30;n;u 1;p 1 71 35;n;u 1;p 1 71 40;n;u 1;p 1 71 45;n;u 1;p 1 71 50;n;u 1;p 1 71 55;n;u 1;p 1 71 60;n;u 1;p 1 71 65;n;u 1;p 1 71 70;n;u 1;p 1 71 75;n;u 1;p 1 71 80;n;u 1;p 1 71 85;n;u 1;p 1 71 90;n;u 1;p 1 71 95;n;u 1;p 1 71 100;n;u 1;p 1 71 105;n;u 1;p 1 71 110;n;u 1;p 1 71 115;n;u 1;p 1 71 120;n;u 1;p 1 71 126;n;u 1;p 1 71 128;n;u 1;p 1 71 131;n;u 1;p 1 71 141;n;u 1;p 1 71 151;n;u 2;p 2 52 165;u 3;p 3 240 165;u 0;p 0 0 2;u 1;p 1 71 153;;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;u 2;p 2 42 165;u 3;p 3 250 165;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;u 2;p 2 32 165;u 3;p 3 260 165;;u 0;p 0 0 2;u 1;p 1 71 153;n;;u 0;p 0 0 0;u 1;p 1 71 151;n;;u 0;p 0 0 2;u 1;p 1 71 153;n;u 2;u 3;n");
 
 				cntr_c=0;
 				
@@ -2539,7 +2573,6 @@ int main(void)
 						c_a_last->next = a; \
 						c_a_last = a; \
 					}
-					
 				
 				{
 					int tmp_player_assgn = 0;
@@ -2594,7 +2627,7 @@ int main(void)
 				/* set up room */
 				
 				/* assign tilemap ptrs */
-				tmap_main_select = select_world->rooms->main;
+				tmap_main_select = select_world->rooms->tm_main;
 				
 				
 				/* select bgm */
@@ -2620,26 +2653,8 @@ int main(void)
 				
 			clear_render_sprites(&rstest);
 			
-			enum
-			{
-				CH0_MD_STAND_U,
-				CH0_MD_STAND_D,
-				CH0_MD_STAND_L,
-				CH0_MD_STAND_R,
-				
-				CH0_MD_WALK_U,
-				CH0_MD_WALK_D,
-				CH0_MD_WALK_L,
-				CH0_MD_WALK_R,
-				
-				CH0_MD_ATTK_U,
-				CH0_MD_ATTK_D,
-				CH0_MD_ATTK_L,
-				CH0_MD_ATTK_R
-			};
 			
-			
-			chara_active *catmp = c_active;
+			catmp = c_active;
 			while (catmp)
 			{
 				switch (catmp->base->type)
@@ -2752,6 +2767,7 @@ int main(void)
 							/* apply dpos to pos */
 							chara_active_apply_dpos_clip(catmp, catmp, tmap_main_select);
 							
+
 							/* tick action frame for sprite */
 							active_chara_sprite_tick_action_frame(&aframe_list, catmp, tmp_add_sprt);
 							
@@ -2808,6 +2824,8 @@ int main(void)
 			render_rsprite_list(tmpd, &rstest, tick_shad);
 			
 			render_hud_health_left(tmpd, sprt_lhud, ch0_health, 1.0, &font_default, &font_outline, font, "Test Character");
+
+			show_action_frames(&aframe_list, &testcam, tmpd);
 			
 			/* tick flicker shadow effect */
 			switch(tick_shad)

@@ -425,8 +425,8 @@ typedef struct room
 {
 	char name[32];
 	
-	tilemap *main;
-	tilemap *mult;
+	tilemap *tm_main;
+	tilemap *tm_mult;
 	/* use to tint sprites in
 	 * specific locals around
 	 * room, e.g. dark cave
