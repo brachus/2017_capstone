@@ -1,4 +1,4 @@
-﻿Build started 2/22/2017 5:10:54 PM.
+﻿Build started 2/23/2017 11:41:18 AM.
      1>Project "C:\Users\NCC Lab User\2017_capstone\2017_Capstone\2017_Capstone\2017_Capstone.vcxproj" on node 2 (Build target(s)).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\CL.exe /c /I"C:\Users\NCC Lab User\2017_capstone\2017_Capstone\sdl2\SDL2_ttf-devel-2.0.14-VC\SDL2_ttf-2.0.14\include" /I"C:\Users\NCC Lab User\2017_capstone\2017_Capstone\sdl2\SDL2-devel-2.0.5-VC\SDL2-2.0.5\include" /I"C:\Users\NCC Lab User\2017_capstone\2017_Capstone\sdl2\SDL2_image-devel-2.0.1-VC\SDL2_image-2.0.1\include" /ZI /nologo /W3 /WX- /Od /Oy- /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc110.pdb" /Gd /TC /analyze- /errorReport:prompt ..\..\main.c
@@ -11,4 +11,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:00.80
+Time Elapsed 00:00:00.74

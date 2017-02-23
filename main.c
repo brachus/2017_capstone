@@ -1762,7 +1762,7 @@ int new_placer(world *in_world, char * script, room *rtmp)
 	n->c_name[0]='\0';
 	n->c_start_mode=0; /* starting mode for chara_template.  if < 0, don't use. */
 	n->playr=0;/* if < 0, not a player placer. if -2, npc.  more codes may be added. */
-	n->type = PLACER_NPC;
+	n->type = -1;
 	n->to; /* exit */
 	
 	n->pos.x=n->pos.y=n->pos.z=0;
@@ -1836,6 +1836,12 @@ int new_placer(world *in_world, char * script, room *rtmp)
 				n->type = PLACER_PLAYER;
 				n->playr = atoi(buf[1]);
 			}
+			else if (	nargs==1 &&
+					!strcmp("player",buf[0]))
+			{
+				n->type = PLACER_PLAYER;
+				n->playr = 0;
+			}
 
 			else if (	nargs==6 &&
 					!strcmp("exit",buf[0]) &&
@@ -1864,7 +1870,7 @@ int new_placer(world *in_world, char * script, room *rtmp)
 	QUICK_PARSE_AFTER_LINE
 	
 	
-	if (rtmp)
+	if (rtmp && n->type>=0)
 	{
 		placer *ptmp=rtmp->placers;
 		if (!ptmp)
@@ -1897,7 +1903,7 @@ void placer_add(world *in_world, char* script)
 tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gathering placers. */
 {
 	FILE *fp=0;
-	int ln=0, tw, th, ntiles, tsize, r, i, j, tmpw, tmph,
+	int ln=0, tw, th, ntiles, tsize, r, i, j, k, tmpw, tmph,
 		ts_load_cur_tile, tmpx, tmpy;
 	char *dat=0, tmpc;
 	tilemap *tm = 0;
@@ -1907,7 +1913,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	char tmp_str[256];
 	
 	jsmn_parser p;
-	jsmntok_t *t;
+	jsmntok_t *t=0;
 	placer *pltmp;
 	
 	fp = fopen(fn,"r");
@@ -2040,7 +2046,6 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 		tmp1 = json_tree_get_node_from_arr(tmp, i);
 
 		json_tree_get_str_from_obj(tmp1,"type",tmp_str);
-		printf("%s\n", tmp_str);
 
 		if (!strcmp(tmp_str, "tilelayer"))
 		{		/* load first tile layer for tilemap. */
@@ -2071,7 +2076,12 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 
 				json_tree_get_str_from_obj(tmp2,"name",tmp_str);
 
-				printf("  %s\n", tmp_str);
+				k=strlen(tmp_str); /* append semicolon */
+				if (k<255)
+				{
+					tmp_str[k]=';';
+					tmp_str[k+1]='\0';
+				}
 
 				if (new_placer(0, tmp_str, inroom)==1) /* if placer added successfully */
 				{
@@ -2081,7 +2091,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 						if (pltmp->next==0)
 						{
 							pltmp->pos.x = tmpx;
-							pltmp->pos.y = tmpy;
+							pltmp->pos.y = -tmpy;
 						}
 						
 						pltmp=pltmp->next;
@@ -2096,7 +2106,8 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	/* TODO: free test_tree, tilesets */
 	
 	ld_tilemap_ff_done:
-	free(t);
+	if (t)
+		free(t);
 	
 	if (dat)
 		free(dat);
@@ -2357,7 +2368,7 @@ int main(void)
 	test_world.attk_frames=0;
 	test_world.dfnd_frames=0;
 	
-	room_add(&test_world, "main desert-test.json desert-test.json;");
+	room_add(&test_world, "main desert-test.json desert-test-lightmap.json;");
 	
 	/* load sprites */
 	sprite_add(&test_world,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
@@ -2385,8 +2396,8 @@ int main(void)
 	sprt_lhud = get_sprite(&test_world, "hud_health_l");
 	sprt_logo = get_sprite(&test_world, "logo");
 	
-	placer_add(&test_world, "player 0 70 -70 1 main;");
-	placer_add(&test_world, "npc jar 70 -70 1 main;");
+	/*placer_add(&test_world, "player 0 70 -70 1 main;");
+	placer_add(&test_world, "npc jar 70 -70 1 main;");*/
 	
 	
 	
@@ -2674,6 +2685,7 @@ int main(void)
 					room *rmtmp;
 					placer *pltmp;
 					chara_active *catmp;
+					chara_template *cattmp;
 					
 					/* only use room 0 for now. */
 					rmtmp = select_world->rooms;
@@ -2685,8 +2697,9 @@ int main(void)
 					
 					while (pltmp)
 					{
+
 						if (pltmp->type == PLACER_PLAYER && tmp_player_assgn < nplayers)
-						{			
+						{	
 							catmp = new_chara_active(get_chara_template(&test_world,"ch0"));
 							catmp->md = pltmp->c_start_mode;
 							catmp->pos.x = pltmp->pos.x;
@@ -2704,16 +2717,19 @@ int main(void)
 							
 						}
 						else if (pltmp->type == PLACER_NPC)
-						{								
-							catmp = new_chara_active(get_chara_template(&test_world,pltmp->c_name));
-							catmp->md = pltmp->c_start_mode;
-							catmp->pos.x = pltmp->pos.x;
-							catmp->pos.y = pltmp->pos.y;
-							catmp->pos.z = pltmp->pos.z;
+						{	
+							cattmp = get_chara_template(&test_world,pltmp->c_name);
+							if (cattmp)
+							{
+								catmp = new_chara_active(cattmp);
+								catmp->md = pltmp->c_start_mode;
+								catmp->pos.x = pltmp->pos.x;
+								catmp->pos.y = pltmp->pos.y;
+								catmp->pos.z = pltmp->pos.z;
 							
-							ADD_CHARA_ACTIVE(catmp);
+								ADD_CHARA_ACTIVE(catmp);
+							}
 							
-							players[tmp_player_assgn].chara = catmp;
 						}
 
 						/* for exits, use c_name for dst room name */
