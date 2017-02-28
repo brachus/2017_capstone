@@ -75,6 +75,51 @@
 		nargs = arg_idx + 1; \
 	}i++;}
 
+
+/* to simplify surface manipulations. */
+#define PW_DECLARE \
+	SDL_PixelFormat *pw_fmt; \
+	int pw_bpp, pw_pitch; \
+	uint32_t pw_ucol; \
+	uint8_t *pw_pixel;
+
+#define PW_INIT(dst) \
+	pw_fmt = dst->format; \
+	pw_bpp = pw_fmt->BytesPerPixel; \
+	pw_pitch = dst->pitch; \
+	if (pw_bpp!=4) \
+		return;
+
+#define PW_PIXEL_SETCOL(r,g,b)  \
+	pw_ucol = SDL_MapRGB(pw_fmt, r,g,b);
+	
+#define PW_PIXEL_SET(x,y,dst)  \
+	{pw_pixel = (uint8_t*) dst->pixels;  \
+	pw_pixel += ((y) * pw_pitch) + ((x) * pw_bpp);  \
+	*((uint32_t*)pw_pixel) = pw_ucol;}
+
+#define PW_PIXEL_MULPIXEL(x,y,r,g,b,a,dst)  \
+	{pw_pixel = (uint8_t*) dst->pixels;  \
+	pw_pixel += ((y) * pw_pitch) + ((x) * pw_bpp);  \
+	SDL_GetRGBA(*((uint32_t*)pw_pixel), pw_fmt, (Uint8*) &r, (Uint8 *)&g, (Uint8 *)&b, (Uint8 *)&a);  \
+	if (a>0) \
+		*((uint32_t*)pw_pixel) = SDL_MapRGBA(pw_fmt, r*mult[0]>>8,g*mult[1]>>8,b*mult[2]>>8,a); \
+	}
+
+/* coordinates are global; y0 > y1 */
+int check_bbox_intersect(
+	int ax0, int ay0, int ax1, int ay1,
+	int bx0, int by0, int bx1, int by1)
+{
+	if (
+		((ax0 < bx1 && ax0 > bx0) || (ax1 < bx1 && ax1 > bx0) || (ax0 < bx0 && ax1 > bx1)) &&
+		((ay0 < by0 && ay0 > by1) || (ay1 < by0 && ay1 > by1) || (ay0 > by0 && ay1 < by1))
+			)
+		return 1;
+	return 0;
+}
+	
+
 int flag_screen_mult = 1;
 
 enum
@@ -150,6 +195,12 @@ enum
 	CH0_MD_ATTK_D,
 	CH0_MD_ATTK_L,
 	CH0_MD_ATTK_R
+};
+
+enum
+{
+	DEBUG_SHOW_ACTION_FRAMES,
+	DEBUG_COUNT
 };
 
 #include "structs.h"
@@ -329,15 +380,25 @@ sprite *new_sprite(char *script)
 				is_int[2] &&
 				is_int[3] &&
 				is_int[4] &&
-				is_int[5]) /*attk_frame_bbox <h> <w> <z>;*/
+				is_int[5]) /*attk_frame_bbox <x> <y>   <h> <w> <z>;*/
 		{
 			n->attk_frame.pos.x=atoi(buf[1]);
 			n->attk_frame.pos.y=atoi(buf[2]);
 			n->attk_frame.pos.z=1;
-			
+						
 			n->attk_frame.h=atoi(buf[3]);
 			n->attk_frame.w=atoi(buf[4]);
 			n->attk_frame.z=atoi(buf[5]);
+		}
+		else if (!strcmp(buf[0], "attk_frame_target") &&
+				nargs==4 &&
+				is_int[1] &&
+				is_int[2] &&
+				is_int[3]) /*attk_frame_bbox <x> <y> <z>;*/
+		{
+			n->attk_frame.target.x=atoi(buf[1]);
+			n->attk_frame.target.y=atoi(buf[2]);
+			n->attk_frame.target.z=atoi(buf[3]);
 		}
 			
 		else if (!strcmp(buf[0], "dfnd_frame_start") &&
@@ -865,7 +926,7 @@ chara_active *new_chara_active(chara_template *a)
 	n->pos.x=n->pos.y=n->pos.z=0;
 	n->dpos.x=n->dpos.y=n->dpos.z=0;
 	
-	n->invisi_cntr=1;
+	n->invisi_cntr=0;
 	n->clips=1;
 	
 	n->effect_cntr=0; /* for glint effect */
@@ -875,14 +936,62 @@ chara_active *new_chara_active(chara_template *a)
 	
 	n->in_room=0;
 	
+	n->active=1; /* this may replace in_world */
+	
 	n->id = id_step++;
 	
-	n->info[0]=n->info[1]=n->info[2]=n->info[3]=
-		n->info[4]=n->info[5]=n->info[6]=n->info[7]=0;
+	for (i=0;i<8;i++)
+		n->info[i]=0;
+	
+	for (i=0;i<8;i++)
+		n->cntr[i]=0;
+	
+	for (i=0;i<32;i++)
+		n->af_hit[i]=0;
+	
+	
+	n->drift_dec=0;
+	n->drift_intrv=0; /* 0 = decrement drift by drift_dec every frame. */
+	n->drift_state=0; /* 0 = use drift dec. */
+	n->drift.x = 0;
+	n->drift.y = 0;
+	n->drift.z = 0;
+	
+	
 	
 	n->next=0;
 	
 	return n;
+}
+
+void chara_active_apply_drift(chara_active *a)
+{
+	a->dpos.x += a->drift.x;
+	a->dpos.y += a->drift.y;
+	a->dpos.z += a->drift.z;
+	
+	#define DEC_DRIFT(b) \
+		if (b < 0) \
+		{ \
+			b += a->drift_dec; \
+			b = (b > 0) ? 0 : b; \
+		} \
+		else if (b > 0) \
+		{ \
+			b -= a->drift_dec; \
+			b = (b < 0) ? 0 : b; \
+		}
+	
+	if (!a->drift_state)
+	{
+		DEC_DRIFT(a->drift.x);
+		DEC_DRIFT(a->drift.y);
+		DEC_DRIFT(a->drift.z);
+		
+		a->drift_state = a->drift_intrv;
+	}
+	else
+		a->drift_state--;
 }
 
 void step_sprite_active(sprite_active *a)
@@ -1041,19 +1150,48 @@ void tilemap_box_modify(tilemap *in, int x0, int y0, int x1, int y1, int val)
 }
 
 
-void render_rsprite_list(SDL_Surface *surf, render_sprite_head *sprh, int shad_tick)
+void apply_multrgb_to_surface(SDL_Surface *surf, int mult[3])
+{
+	PW_DECLARE;
+	
+	int i,j, rgba[4]={0,0,0,0};
+		
+	PW_INIT(surf);
+	
+	for (i=0;i<surf->w;i++)
+		for (j=0;j<surf->h;j++)
+			PW_PIXEL_MULPIXEL(i,j,rgba[0],rgba[1],rgba[2],rgba[3],surf);
+	
+}
+
+
+void render_rsprite_list(SDL_Surface *surf, SDL_Surface *s_layer, render_sprite_head *sprh, int shad_tick)
 {
 	/* render sprites from render sprite list */
 	SDL_Rect pos;
 	render_sprite *tmp = sprh->next;
 	
+	int mult[3]={255,225,185}; /* multiplier. */
+	
+	/* eventually, take in a tile map with mult rgb values, and have each individual sprite
+	 * be multiplied by this, instead of a global, static rgb multiply effect.
+	 */
+	
 	while (tmp)
 	{	
 		pos.x = tmp->x - tmp->cx;
 		pos.y = tmp->y - tmp->cy;
-		SDL_BlitSurface(tmp->sprt,0 , surf, &pos);
+		SDL_BlitSurface(tmp->sprt, 0 , s_layer, &pos);
 		tmp = tmp->next;
 	}
+	
+	/* apply color multiplier to sprite layer before
+	 * it is blitted to main layer
+	 */
+	
+	apply_multrgb_to_surface(s_layer, mult);
+	
+	SDL_BlitSurface(s_layer, 0 , surf, 0);
 }
 
 void render_tilemap(SDL_Surface *surf, tilemap *intmap, cam *incam)
@@ -1161,6 +1299,7 @@ void render_text(SDL_Surface *dst, SDL_Color *fg, SDL_Color *bg, TTF_Font *font,
 	
 }
 
+
 /* both a and b range from 0 - 255 */
 void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b, SDL_Color *fg, SDL_Color *bg, TTF_Font *font, char *msg)
 {
@@ -1168,35 +1307,17 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	#define L_HUD_HEALTH_TOPLEFT_Y 24
 	#define L_HUD_HEALTH_TOPLEFT_LN 75
 	
+	PW_DECLARE;
+	
 	SDL_Surface *src;
-	SDL_PixelFormat *pw_fmt;
-	int pw_bpp, pw_pitch, tmpln, i, j;
-	uint32_t pw_ucol;
-	uint8_t *pw_pixel;
+	int tmpln, i, j;
 	
 	src = sprt_src->sprt_arr[0];
 	
-	
-	
-	
-	pw_fmt = dst->format;
-	pw_bpp = pw_fmt->BytesPerPixel;
-	pw_pitch = dst->pitch;
-	
-	
-	if (pw_bpp!=4)
-		return;
+	PW_INIT(dst);
 		
 	SDL_BlitSurface(src,0 , dst, 0);
 	
-	
-	#define PW_PIXEL_SETCOL(r,g,b)  \
-		pw_ucol = SDL_MapRGB(pw_fmt, r,g,b);
-		
-	#define PW_PIXEL_SET(x,y)  \
-		{pw_pixel = (uint8_t*) dst->pixels;  \
-		pw_pixel += ((y) * pw_pitch) + ((x) * pw_bpp);  \
-		*((uint32_t*)pw_pixel) = pw_ucol;}
 	
 	PW_PIXEL_SETCOL(201,228,246);
 	
@@ -1210,13 +1331,12 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	{
 		j=L_HUD_HEALTH_TOPLEFT_Y;
 		if (i<L_HUD_HEALTH_TOPLEFT_X+75)
-			PW_PIXEL_SET(i, j);
+			PW_PIXEL_SET(i, j,dst);
 		j++;
 		if (i<L_HUD_HEALTH_TOPLEFT_X+76)
-			PW_PIXEL_SET(i, j);
+			PW_PIXEL_SET(i, j,dst);
 		j++;
-		PW_PIXEL_SET(i, j);
-		
+		PW_PIXEL_SET(i, j,dst);
 		i++;
 		
 	}
@@ -1927,9 +2047,12 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	if (!ln)
 		goto ld_tilemap_ff_done;
 	
+	
 	dat = (char*) malloc(ln + 1);
 
 	t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * ln);
+	
+	
 	
 	rewind(fp);
 	
@@ -1947,6 +2070,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	}
 	/*fread(dat, ln, 1, fp);*/
 	
+	
 	fclose(fp);
 	fp=0;
 	
@@ -1958,6 +2082,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	 * has at least 1 tilelayer same size as tilemap,
 	 * and image for tileset exists.
 	 */
+	
 	
 	if (r < 0)
 		goto ld_tilemap_ff_done;
@@ -1980,6 +2105,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	/*printf("tilesets cnt %d\n", tmp->cnt);*/
 	
 	ntiles=0;
+	
 
 	for (i=0;i<tmp->cnt;i++)
 	{
@@ -1992,6 +2118,14 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 		/*printf("%s %d %d\n", tmp_str, tmpw,tmph);*/
 		tilesets[i] = IMG_Load(tmp_str);
 		/*printf("tile set %d loaded!\n", i);*/
+		
+		if (!tilesets[i])
+		{
+			printf("couldn't load \"%s\".\n",tmp_str);
+			goto ld_tilemap_ff_done;
+		}
+			
+		
 		ntiles += tmpw * tmph;
 	}
 	
@@ -2010,6 +2144,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	
 	for (i=0;i<ntiles;i++)
 		tm->tiles[i] = SDL_CreateRGBSurface(0,tsize,tsize,32,0,0,0,0);
+
 	
 	for (i = 0; i < tmp->cnt; i++)
 	{
@@ -2019,7 +2154,6 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 			tmp_clip_rect.x = 0;
 			while (tmp_clip_rect.x + tsize-1 < tilesets[i]->w && ts_load_cur_tile < ntiles)
 			{
-				
 				
 				SDL_BlitSurface(tilesets[i], &tmp_clip_rect, tm->tiles[ts_load_cur_tile], 0);
 				
@@ -2142,6 +2276,7 @@ room * new_room(char* script)
 					strlen(buf[2]) < 255)
 			{
 				strcpy(n->name, buf[0]);
+				
 				n->tm_main = load_tilemap_from_json(buf[1], n);
 				n->tm_mult = load_tilemap_from_json(buf[2], n);
 			}
@@ -2201,7 +2336,7 @@ void show_action_frames(action_frame *af_list_head, cam *incam, SDL_Surface *s)
 		{
 			x=(tmp->owner->pos.x + tmp->pos.x) - tmp->w/2;
 			y=(tmp->owner->pos.y + tmp->pos.y) + tmp->h/2 + tmp->z;
-
+			
 			rtmp.x = (SWIDTH/2) + x - cx;
 			rtmp.y = (SHEIGHT/2) - y + cy;
 			rtmp.w = tmp->w;
@@ -2221,6 +2356,7 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 	/* from given active sprite, if on attack frame start */
 	if (sa->cntr == 0 && sa->cur == sa->base->attk_frame_start && sa->base->attk_frame.cntr > 0)
 	{
+				
 		tmp=af_list_head->next;
 		
 		if (!tmp)
@@ -2247,9 +2383,9 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 				tmp->w = sa->base->attk_frame.w;
 				tmp->h = sa->base->attk_frame.h;
 				tmp->z = sa->base->attk_frame.z;
-				tmp->pos.x = sa->base->attk_frame.target.x;
-				tmp->pos.y = sa->base->attk_frame.target.y;
-				tmp->pos.z = sa->base->attk_frame.target.z;
+				tmp->target.x = sa->base->attk_frame.target.x;
+				tmp->target.y = sa->base->attk_frame.target.y;
+				tmp->target.z = sa->base->attk_frame.target.z;
 				
 				break;
 			}
@@ -2260,7 +2396,60 @@ void active_chara_sprite_tick_action_frame(action_frame *af_list_head, chara_act
 
 void action_frame_check_if_hit(action_frame *af_list_head, chara_active *ca)
 {
-	/*action_frame *hitlist[32];*/
+	action_frame *tmp = af_list_head->next;
+	int ca_bbox[4];  /*xy0 xy1*/
+	int af_bbox[4];
+	
+	/* bboxes are in global coords, as
+	 * check_bbox_intersect tests in
+	 * global coords.
+	 */
+	
+	ca_bbox[0] = ca->pos.x - ca->base->bbox_w/2;
+	ca_bbox[1] = ca->pos.y + ca->base->bbox_h/2;
+	ca_bbox[2] = ca->pos.x + ca->base->bbox_w/2;
+	ca_bbox[3] = ca->pos.y - ca->base->bbox_h/2;
+	
+	while (tmp)
+	{
+		
+		af_bbox[0] = (tmp->owner->pos.x + tmp->pos.x) - tmp->w/2;
+		af_bbox[1] = (tmp->owner->pos.y + tmp->pos.y) + tmp->h/2 + tmp->z;
+		af_bbox[2] = af_bbox[0] + tmp->w;
+		af_bbox[3] = af_bbox[1] - tmp->h;
+		
+		if (
+				check_bbox_intersect(
+					ca_bbox[0],ca_bbox[1],ca_bbox[2],ca_bbox[3],
+					af_bbox[0],af_bbox[1],af_bbox[2],af_bbox[3]   ) &&
+				ca->af_hit_cnt < 32
+			)
+		{
+			ca->af_hit[ca->af_hit_cnt] = tmp;
+			ca->af_hit_cnt++;
+		}
+			
+		
+		tmp=tmp->next;
+	}
+}
+
+void chara_active_af_apply_drift(chara_active *ca)
+{
+	int i;
+	
+	for (i=0;i<ca->af_hit_cnt;i++)
+	{
+		
+		ca->drift_dec=1;
+		ca->drift_intrv=8; /* 0 = decrement drift by drift_dec every frame. */
+		ca->drift_state=0; /* 0 = use drift dec. */
+		
+		ca->drift.x += ca->af_hit[i]->target.x;
+		ca->drift.y += ca->af_hit[i]->target.y;
+		ca->drift.z += ca->af_hit[i]->target.z;
+		
+	}
 }
 
 void action_frame_clear_chara(action_frame *af_list_head, chara_active *ca)
@@ -2305,8 +2494,10 @@ int main(void)
 	
 	int keys_down[8] = {0,0,0,0,0,0,0,0};
 	
+	int debug_f[DEBUG_COUNT];
+	
 	SDL_Event e;
-	SDL_Surface *main_display, *tmpd;
+	SDL_Surface *main_display, *tmpd, *s_layer;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
 	sprite  *sprt_shad, *sprt_logo;
@@ -2334,6 +2525,10 @@ int main(void)
 	#define SET_FADE_OUT() {fader_md=2;fader_cnt=0;}
 	#define SET_FADE_OFF() {fader_md=0;fader_cnt=0;}
 	#define SET_FADE_ON() {fader_md=0;fader_cnt=255;}
+	
+	/* reset debug flags */
+	for (i=0;i<DEBUG_COUNT;i++)
+		debug_f[i] = 0;
 
 	/* reset action frame list */
 	aframe_list.next=0;
@@ -2384,10 +2579,10 @@ int main(void)
 	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
 	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;loop 0;img 0 d_0.png;");
 
-	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 u_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 40    20 20 10;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 d_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 -40 20 20 10; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -40 0 20 20 10; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 40 0 20 20 10;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 u_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 10    20 20 10;attk_frame_target 0 3 0;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 d_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 -10 20 20 10;attk_frame_target 0 -3 0; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -10 0 20 20 10;attk_frame_target -3 0 0; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
+	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 10 0 20 20 10;attk_frame_target 3 0 0;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
 		
 	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;gfx  0 ch0_left_move;gfx  1 ch0_left_stand;gfx  2 ch0_right_move;gfx  3 ch0_right_stand;gfx  4 ch0_up_move;gfx  5 ch0_up_stand;gfx  6 ch0_down_move;gfx  7 ch0_down_stand;gfx  8 ch0_up_attk_basic;gfx  9 ch0_down_attk_basic;gfx  10 ch0_left_attk_basic;gfx  11 ch0_right_attk_basic;");
 	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;gfx  0 jar;");
@@ -2422,8 +2617,13 @@ int main(void)
 	
 	/* get window surface; create framebuffer */
 	main_display = SDL_GetWindowSurface(win);
+	
 	tmpd = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT,32,0,0,0,0);
+	s_layer = SDL_CreateRGBSurface(0, SWIDTH, SHEIGHT,32,0xff000000,0xff0000,0xff00,0xff);
+	
 	SDL_SetSurfaceBlendMode(tmpd, SDL_BLENDMODE_BLEND);
+	SDL_SetSurfaceBlendMode(s_layer, SDL_BLENDMODE_BLEND);
+	
 	SDL_SetSurfaceBlendMode(main_display, SDL_BLENDMODE_BLEND);
 	
 	
@@ -2775,6 +2975,7 @@ int main(void)
 				{
 				case 0: /* CH0 */
 					j=catmp->md;
+					catmp->md_changed = 0;
 					
 					if ((catmp->md == CH0_MD_STAND_U || 
 						 catmp->md == CH0_MD_STAND_D || 
@@ -2842,86 +3043,111 @@ int main(void)
 							catmp->md=CH0_MD_STAND_R;
 					}
 					
-					/* add sprite according to mode */
+					catmp->u_sprt = 0;
+						
+					switch(catmp->md)
+					{case CH0_MD_STAND_U: catmp->u_sprt = catmp->gfx[5]; break;
+					case CH0_MD_STAND_D:  catmp->u_sprt = catmp->gfx[7]; break;
+					case CH0_MD_STAND_L:  catmp->u_sprt = catmp->gfx[1]; break;
+					case CH0_MD_STAND_R:  catmp->u_sprt = catmp->gfx[3]; break;
+					case CH0_MD_WALK_U:   catmp->u_sprt = catmp->gfx[4]; break;
+					case CH0_MD_WALK_D:   catmp->u_sprt = catmp->gfx[6]; break;
+					case CH0_MD_WALK_L:   catmp->u_sprt = catmp->gfx[0]; break;
+					case CH0_MD_WALK_R:   catmp->u_sprt = catmp->gfx[2]; break;
+					case CH0_MD_ATTK_U:   catmp->u_sprt = catmp->gfx[8]; break;
+					case CH0_MD_ATTK_D:   catmp->u_sprt = catmp->gfx[9]; break;
+					case CH0_MD_ATTK_L:   catmp->u_sprt = catmp->gfx[10]; break;
+					case CH0_MD_ATTK_R:   catmp->u_sprt = catmp->gfx[11]; break;}
+					
+					if (catmp->invisi_cntr>0)
+						catmp->invisi_cntr--;
+						
+					if (j!=catmp->md)
+						catmp->md_changed = 1;
+					
+					break;
+					
+				case 1: /* jar */
+					
+					for (i=0;i<32;i++)
+						catmp->af_hit[i] = 0;
+					
+					catmp->af_hit_cnt = 0;
+					
+					switch(catmp->md)
 					{
-						sprite_active *tmp_add_sprt = 0;
-						
-						switch(catmp->md)
-						{case CH0_MD_STAND_U: tmp_add_sprt = catmp->gfx[5]; break;
-						case CH0_MD_STAND_D:  tmp_add_sprt = catmp->gfx[7]; break;
-						case CH0_MD_STAND_L:  tmp_add_sprt = catmp->gfx[1]; break;
-						case CH0_MD_STAND_R:  tmp_add_sprt = catmp->gfx[3]; break;
-						case CH0_MD_WALK_U:   tmp_add_sprt = catmp->gfx[4]; break;
-						case CH0_MD_WALK_D:   tmp_add_sprt = catmp->gfx[6]; break;
-						case CH0_MD_WALK_L:   tmp_add_sprt = catmp->gfx[0]; break;
-						case CH0_MD_WALK_R:   tmp_add_sprt = catmp->gfx[2]; break;
-						case CH0_MD_ATTK_U:   tmp_add_sprt = catmp->gfx[8]; break;
-						case CH0_MD_ATTK_D:   tmp_add_sprt = catmp->gfx[9]; break;
-						case CH0_MD_ATTK_L:   tmp_add_sprt = catmp->gfx[10]; break;
-						case CH0_MD_ATTK_R:   tmp_add_sprt = catmp->gfx[11]; break;}
-						
-						
-						
-						/* add sprite */
-						if (tmp_add_sprt)
+					case 0:
+						if (catmp->invisi_cntr <= 0 && catmp->md==0)
 						{
-							/* mode changed? reset sprite animation */
-							if (j!=catmp->md)
+							action_frame_check_if_hit(&aframe_list, catmp);
+							
+							if (catmp->af_hit_cnt > 0)
 							{
-								reset_sprite_active(tmp_add_sprt);
+								/* apply drift effect if hit by any action frames */
+								chara_active_af_apply_drift(catmp);
 								
-								/* clear all action frames associated with active chara */
-								action_frame_clear_chara(&aframe_list, catmp);
+								catmp->invisi_cntr = FPS / 2;
+								
+								catmp->md++; /* step mode to deactivate */
 							}
-							
-							/* apply sprite drift at frame to dpos */
-							apply_dpos_chara_sprite_active(catmp, tmp_add_sprt);
-							
-							/* apply dpos to pos */
-							chara_active_apply_dpos_clip(catmp, catmp, tmap_main_select);
-							
-
-							/* tick action frame for sprite */
-							active_chara_sprite_tick_action_frame(&aframe_list, catmp, tmp_add_sprt);
-							
-							if (!(catmp->invisi_cntr > 0 && tick_shad<0))
-								/* add sprite to render list as a render sprite */
-								add_sprite_auto_shadow(
-									&rstest,
-									tmp_add_sprt,
-									0,  
-									&testcam, 
-									catmp->pos.x, 
-									catmp->pos.y, 
-									catmp->pos.z);
-							
-							
-							/* step sprite */
-							step_sprite_active(tmp_add_sprt);
 						}
+						break;
+					case 1:
+						if (catmp->invisi_cntr <= 0)
+							catmp->active = 0;
+						break;
 					}
+					
+					catmp->u_sprt = catmp->gfx[0];
 					
 					if (catmp->invisi_cntr>0)
 						catmp->invisi_cntr--;
 					
 					break;
-					
-				case 1: /* jar */
+				}
+				
+				
+				/* add sprite */
+				if (catmp->u_sprt && catmp->active )
+				{
+					/* mode changed? reset sprite animation */
+					if (catmp->md_changed)
 					{
-						sprite_active *tmp_add_sprt = catmp->gfx[0];
+						reset_sprite_active(catmp->u_sprt);
 						
+						/* clear all action frames associated with active chara */
+						action_frame_clear_chara(&aframe_list, catmp);
+					}
+					
+					/* apply sprite drift at frame to dpos */
+					apply_dpos_chara_sprite_active(catmp, catmp->u_sprt);
+					
+					/* apply drift effect (should be only be used for props )*/
+					chara_active_apply_drift(catmp);
+					
+					/* apply dpos to pos */
+					chara_active_apply_dpos_clip(catmp, catmp, tmap_main_select);
+					
+					/* tick action frame for sprite */
+					active_chara_sprite_tick_action_frame(&aframe_list, catmp, catmp->u_sprt);
+					
+					if (!(catmp->invisi_cntr > 0 && tick_shad<0))
+						/* add sprite to render list as a render sprite */
 						add_sprite_auto_shadow(
 							&rstest,
-							tmp_add_sprt,
-							0,
+							catmp->u_sprt,
+							0,  
 							&testcam, 
 							catmp->pos.x, 
 							catmp->pos.y, 
 							catmp->pos.z);
-					}
-						
-					break;
+					
+					
+					/* step sprite */
+					step_sprite_active(catmp->u_sprt);
 				}
+				
+				
 				catmp=catmp->next;
 			}
 			
@@ -2933,20 +3159,22 @@ int main(void)
 			/* render tile map */
 			render_tilemap(tmpd, tmap_main_select, &testcam);
 		
+			SDL_FillRect( s_layer, 0, SDL_MapRGBA( s_layer->format, 0, 0, 0, 0 ) );
+			
 			/* render sprites from render sprite list */
-			render_rsprite_list(tmpd, &rstest, tick_shad);
+			render_rsprite_list(tmpd, s_layer, &rstest, tick_shad);
 			
 			render_hud_health_left(tmpd, sprt_lhud, ch0_health, 1.0, &font_default, &font_outline, font, "Test Character");
 
-			show_action_frames(&aframe_list, &testcam, tmpd);
+			if (debug_f[DEBUG_SHOW_ACTION_FRAMES])
+				show_action_frames(&aframe_list, &testcam, tmpd);
 			
 			/* tick flicker shadow effect */
 			switch(tick_shad)
 			{
-			case -2:tick_shad=-1;break;
 			case -1:tick_shad=0;break;
 			case 0:tick_shad=1;break;
-			case 1:tick_shad=-2;break;
+			case 1:tick_shad=-1;break;
 			}
 			
 			break;

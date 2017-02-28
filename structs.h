@@ -328,6 +328,7 @@ typedef struct chara_active
 	alignment algnmt;
 	chara_template *base;
 	sprite_active **gfx;  /* sprite instances  */
+	sprite_active *u_sprt; /* sprite to render 	*/
 	
 	/* includes action/variation of an action, including walking/running
 	 * in a particular direction, falling back from being hit, attacking
@@ -335,6 +336,7 @@ typedef struct chara_active
 	 */
 	int md;
 	int md_prev;
+	int md_changed;
 	
 	/* this is stepped along a static var in chara_active. */
 	int id;
@@ -353,6 +355,12 @@ typedef struct chara_active
 	xyz pos;
 	xyz dpos;
 	
+	xyz drift;
+	
+	int drift_dec; 
+	int drift_intrv; /* 0 = decrement drift by drift_dec every frame. */
+	int drift_state; /* 0 = use drift dec. */
+	
 	int invisi_cntr; /* for flicker+invisible effect after damage. */
 	int clips;
 	
@@ -361,10 +369,18 @@ typedef struct chara_active
 	
 	int in_world;
 	
+	int active;
+	
 	struct room *in_room;
 	
 	int info[8];/* generic info for charas to hold.  exits use [0] to hold dst room. */
 	int cntr[8];
+	
+	action_frame *af_hit[32];
+	int af_hit_cnt;
+	/* each active character may be attacked
+	 * simultaneously be up to 32 action frames.
+	 */
 	
 	struct chara_active *next;
 	

@@ -1,28 +1,28 @@
 
-- (exits + items are now charas, BUT...) implement 'placers' for world/rooms.
-	2 types so far:
-		player placer: any human/cpu player may be placed here.
-		npc placer: any helper npc may be placed here.  possibly a weight to indicate strength of npc??
 
-- Integrate room structure into main loop:
-		have all active characters be declared so from room structs.
-		
-		before battle mode:
-			which room?
-			which difficulty? 
-		
-		starting battle mode:
-			select world, ## LEAVE THIS UNDONE select world ver.
-				(different placement based on difficulty/game type/# players )
-			
-			make active charas from all templates placed in world.
-			
-			how many players?
-			
-			which player are we focusing on?
-			
-			select world
-			
+
+
+
+
+
+- implement function for checking if an active character is hit  by one  more 
+    action frames.  this should also effectively also calculate a net force for 
+    impact.
+    
+- implement function for taking damage. 
+
+- add "interact" flag for charas.  this may be set to null, "collide", or "active".
+
+
+- implement function for checking if any given character interacts with some other character
+    by colliding, or in case of being a player, actively interacting with another character.
+    this should populate a Tag List.  
+    
+    Each tag should consist of:
+		Type flag - for some type of interaction.
+			e.g.:
+				
+
 			
 			
 			
