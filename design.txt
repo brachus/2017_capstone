@@ -84,28 +84,58 @@ Control Flow:
 Game play:
 
 Character spawns at starting point.
-
 Character may move around.
-
 Player can press attack button to execute strike based on selected weapon.
-
 Player can press jump to leap in air, or dodge if directional is pressed.
-
 NPCs (only NPCs for now) may be attacked.
-
 If player is attacked, 2 sec. of invicibility is triggered.
-
 If NPC is defeated, an item may appear in its place after it's dissapeared.  Exp points added to.
-
 Message is triggered with earned exp points, picked up items, level ups, etc.
-
 Emphasis should be put on strong, difficult enemies, with specific attack/evade patterns.
-
 In general, game play overall needs to be simple, responsive, tactile.  Needs to require skill.
-
-
 Playable Character types: knight, mage, elf, ogre.
-
 NPCs, includes Playable types, + elemental types, large monsters, 
+
+We want skill over chance.
+
+
+
+### 03-02-17:
+  
+  After title screen,
+	[player may select # players, which will lead to menu waiting to gather other players ],
+	player selects race, gender, and class of character.
+	player then selects GAME TYPE.
+	
+	Game commences once all players are gathered.
+	
+	
+	
+	
+  Game Types:
+    Capture holy grail.  
+		AI CLASS A:  go after the grail.
+		AI CLASS B:  go to were grail is located 
+		AI CLASS C:  attack any member of some other team, go to random locations.
+	Slay the evil world monster.
+		A monster comes in and brings in minions.
+		It is hiding, but its minions roam about everywhere in addition to regular npc's.
+		Players must hunt for energy pearls located at all ANCIENT STORES.
+			Either an energy pearl is left alone in a store, or it has been stolen by
+			an overpowered minion that roams nearby.  Emphasis on overpowered.  when defeated,
+			the minion will let out the pearl of energy and some helper items.
+			
+			We don't want the player to waste time frutlessly with dead ends, so that's why 
+			EVERY ancient store.  We want skill over chance.
+			
+		When 50% or 75% of energy pearls have been collected, which ever team has 
+		the most pearls will be teleported to a separate realm (battlefield) ( this will create an announcement ) where they will
+		face the monster.  every other team gets to fight at least the mosters brother/sister
+		that just happened along.
+			
+	
+	
+  Ancient Store:
+	Locations all around the world were old energy/magic has been stored.  Elders remotely restrict/allow public access in times of disaster.
 
 

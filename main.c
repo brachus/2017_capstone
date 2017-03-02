@@ -176,7 +176,9 @@ enum
 enum
 {
 	CHARA_CH0,
-	CHARA_JAR
+	CHARA_JAR,
+	CHARA_FOOD_PICKUP_BOWL,
+	CHARA_FOOD_PICKUP_MEAT,
 };
 
 enum
@@ -196,6 +198,12 @@ enum
 	CH0_MD_ATTK_L,
 	CH0_MD_ATTK_R
 };
+
+enum
+{
+	CH_TYPE_PICKUP,
+	CH_TYPE_INTERACT
+}
 
 enum
 {
@@ -830,6 +838,8 @@ chara_template *new_chara_template(world *in_world, char *script)
 	
 	n->type=0;
 	
+	n->pickup = 0;
+	
 	n->next=0;
 	
 	QUICK_PARSE_BEFORE_LINE
@@ -873,6 +883,9 @@ chara_template *new_chara_template(world *in_world, char *script)
 				is_int[1]==0 &&
 				strlen(buf[1]) < 31)
 			strcpy(n->name, buf[1]);
+		
+		else if (!strcmp(buf[0], "pickup"))
+			n->pickup = 1;
 			
 	QUICK_PARSE_AFTER_LINE
 	
@@ -1342,7 +1355,7 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	}
 	
 	/* render text */
-	render_text(dst, fg, bg, font, msg, 50,7, TEXT_OUTLINE | TEXT_BOLD );
+	render_text(dst, fg, bg, font, msg, 42,8, TEXT_OUTLINE | TEXT_BOLD );
 	
 	
 }
@@ -1351,6 +1364,107 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
  */
 void chara_active_apply_dpos_clip( chara_active *a, chara_active *all, tilemap *tm)
 {
+	int step[3] = {0,0,0}, acc_step[3] = {0,0,0}, acc_step_prev[3] = {0,0,0}, i;
+	b_blocker *bbtmp;
+	
+	
+	/*
+	 * to do clipping, step pos 1px until at dpos,
+	 * checking each step if bbox collides or not.
+	 */
+	
+	/* how are we stepping ? */
+	if (a->dpos.x > 0)   step[0]=1;
+	if (a->dpos.x < 0)   step[0]=-1;
+	if (a->dpos.y > 0)   step[1]=1;
+	if (a->dpos.y < 0)   step[1]=-1;
+	if (a->dpos.z > 0)   step[2]=1;
+	if (a->dpos.z < 0)   step[2]=-1;
+	
+	
+	
+	/*printf("dpos %d %d %d \n",a->dpos.x,a->dpos.y,a->dpos.z);*/
+	
+	 
+	/* step accumulators are already cleared. */
+	
+	for (i=0;i<32;i++)
+	{
+		
+		if (acc_step[0] != a->dpos.x)
+			acc_step[0] += step[0];
+		if (acc_step[1] != a->dpos.y)
+			acc_step[1] += step[1];
+		if (acc_step[2] != a->dpos.z)
+			acc_step[2] += step[2];
+		
+			
+		/* for now, only test four corners of bounding box */
+		
+		
+		{ 
+			bbtmp = tm->b_block;
+			
+			/*printf("%d %d %d %d\n", a->pos.x + acc_step[0] - (a->base->bbox_w / 2),
+						a->pos.y + acc_step[0] + (a->base->bbox_h / 2),
+						a->pos.x + acc_step[0] + (a->base->bbox_w / 2),
+						a->pos.y + acc_step[0] - (a->base->bbox_h / 2));*/
+			
+			while (bbtmp)
+			{
+				/*printf("  %d %d %d %d\n", bbtmp->x,
+						bbtmp->y,
+						bbtmp->x - bbtmp->w,
+						bbtmp->y - bbtmp->h);*/
+				if (  check_bbox_intersect(
+						a->pos.x + acc_step[0] - (a->base->bbox_w / 2),
+						a->pos.y + acc_step[1] + (a->base->bbox_h / 2),
+						a->pos.x + acc_step[0] + (a->base->bbox_w / 2),
+						a->pos.y + acc_step[1] - (a->base->bbox_h / 2),
+						bbtmp->x,
+						bbtmp->y,
+						bbtmp->x + bbtmp->w,
+						bbtmp->y - bbtmp->h)  )
+					goto doclip;
+				bbtmp = bbtmp->next;
+			}
+		}
+		
+		
+		/* test against tilemap b_blockers */
+		
+		goto noclip;
+		
+	  doclip:
+		/*printf("%d %d %d %d with %d %d %d %d:",a->pos.x + acc_step[0] - (a->base->bbox_w / 2),
+						a->pos.y + acc_step[1] + (a->base->bbox_h / 2),
+						a->pos.x + acc_step[0] + (a->base->bbox_w / 2),
+						a->pos.y + acc_step[1] - (a->base->bbox_h / 2),
+						bbtmp->x,
+						bbtmp->y,
+						bbtmp->x + bbtmp->w,
+						bbtmp->y - bbtmp->h);
+		printf("do clip -> %d %d %d \n",acc_step_prev[0],acc_step_prev[1],acc_step_prev[2]);*/
+		
+		a->dpos.x = acc_step_prev[0]; /* we're done. */
+		a->dpos.y = acc_step_prev[1];
+		a->dpos.z = acc_step_prev[2];
+		break;
+		
+	  noclip:
+	  
+		acc_step_prev[0] = acc_step[0];
+		acc_step_prev[1] = acc_step[1];
+		acc_step_prev[2] = acc_step[2];
+		
+	}
+	
+	
+	
+	
+	
+	/* apply dpos */
+	
 	a->pos.x += a->dpos.x;
 	a->pos.y += a->dpos.y;
 	a->pos.z += a->dpos.z;
@@ -1359,31 +1473,6 @@ void chara_active_apply_dpos_clip( chara_active *a, chara_active *all, tilemap *
 	
 }
 
-/* applies dxyz to xyz vars in actor, while clipping
- * against other actors and a tilemap.
- */
-void actor_apply_delta_doclip( actor *a, actor **all, tilemap *tm)
-{
-	a->x += a->dx;
-	a->y += a->dy;
-	a->z += a->dz;
-	
-	a->dx = a->dy = a->dz = 0;
-	
-}
-
-/* applies dxyz to xyz vars in actor, while clipping
- * against other actors and a tilemap.
- */
-void actor_apply_delta_noclip(actor *a)
-{
-	a->x += a->dx;
-	a->y += a->dy;
-	a->z += a->dz;
-	
-	a->dx = a->dy = a->dz = 0;
-	
-}
 
 void reset_controller(controller *a)
 {
@@ -2030,6 +2119,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0, *tmp2=0;
 	SDL_Rect tmp_clip_rect;
 	SDL_Surface **tilesets;
+	b_blocker *btmp;
 	char tmp_str[256];
 	
 	jsmn_parser p;
@@ -2117,7 +2207,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 		
 		/*printf("%s %d %d\n", tmp_str, tmpw,tmph);*/
 		tilesets[i] = IMG_Load(tmp_str);
-		/*printf("tile set %d loaded!\n", i);*/
+		printf("tile set %d \"%s\" loaded!\n", i, tmp_str);
 		
 		if (!tilesets[i])
 		{
@@ -2132,6 +2222,8 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	tm = new_tilemap(tw,th,ntiles);
 
 	tm->tsize = tsize;
+	
+	tm->b_block = 0;
 	
 	/*printf("ntiles %d\n", ntiles);*/
 	
@@ -2157,13 +2249,13 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 				
 				SDL_BlitSurface(tilesets[i], &tmp_clip_rect, tm->tiles[ts_load_cur_tile], 0);
 				
-				/*printf("filled tile %d %d at %d %d in tileset %d %p\n",
+				printf("filled tile %d %d at %d %d in tileset %d %p\n",
 					ts_load_cur_tile,
 					tm->tiles[ts_load_cur_tile],
 					tmp_clip_rect.x,
 					tmp_clip_rect.y,
 					i,
-					tilesets[i]);*/
+					tilesets[i]);
 				
 				tmp_clip_rect.x+=tsize;
 				
@@ -2201,37 +2293,72 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 			for (j=0;j<tmp1->cnt;j++)
 			{
 				tmp2 = json_tree_get_node_from_arr(tmp1, j);
-
-				tmpx = json_tree_get_int_from_obj(tmp2, "x");
-				tmpy = json_tree_get_int_from_obj(tmp2, "y");
 				
-				tmpx += json_tree_get_int_from_obj(tmp2, "w")/2;
-				tmpy += json_tree_get_int_from_obj(tmp2, "h")/2;
-
 				json_tree_get_str_from_obj(tmp2,"name",tmp_str);
-
-				k=strlen(tmp_str); /* append semicolon */
-				if (k<255)
+				
+				if (!strcmp(tmp_str, "wall")) /* collision wall ?*/
 				{
-					tmp_str[k]=';';
-					tmp_str[k+1]='\0';
-				}
-
-				if (new_placer(0, tmp_str, inroom)==1) /* if placer added successfully */
-				{
-					pltmp = inroom->placers;
-					while (pltmp)
+					tmpx = json_tree_get_int_from_obj(tmp2, "x");
+					tmpy = json_tree_get_int_from_obj(tmp2, "y");
+					tmpw = json_tree_get_int_from_obj(tmp2, "width");
+					tmph = json_tree_get_int_from_obj(tmp2, "height");
+					
+					printf("wall: %d %d %d %d\n",tmpx,tmpy,tmpw,tmph);
+					
+					#define NEW_BBLOCK(atmp) \
+						atmp = (b_blocker *) malloc(sizeof(b_blocker)); \
+						atmp->x = tmpx; \
+						atmp->y = -tmpy; \
+						atmp->w = tmpw; \
+						atmp->h = tmph; \
+						atmp->next = 0;
+					
+					if (!tm->b_block)
 					{
-						if (pltmp->next==0)
-						{
-							pltmp->pos.x = tmpx;
-							pltmp->pos.y = -tmpy;
-						}
-						
-						pltmp=pltmp->next;
+						NEW_BBLOCK(tm->b_block);
 					}
-
+					else
+					{
+						btmp = tm->b_block;
+						
+						while (btmp)
+						{
+							if (!btmp->next)
+							{
+								NEW_BBLOCK(btmp->next);
+								break;
+							}
+							btmp=btmp->next;
+						}
+					}
 				}
+				else /* placer ? */
+				{
+					tmpx = json_tree_get_int_from_obj(tmp2, "x");
+					tmpy = json_tree_get_int_from_obj(tmp2, "y");
+					tmpx += json_tree_get_int_from_obj(tmp2, "width")/2;
+					tmpy += json_tree_get_int_from_obj(tmp2, "height")/2;
+					k=strlen(tmp_str); /* append semicolon */
+					if (k<255)
+					{
+						tmp_str[k]=';';
+						tmp_str[k+1]='\0';
+					}
+					if (new_placer(0, tmp_str, inroom)==1) /* if placer added successfully */
+					{
+						pltmp = inroom->placers;
+						while (pltmp)
+						{
+							if (pltmp->next==0)
+							{
+								pltmp->pos.x = tmpx;
+								pltmp->pos.y = -tmpy;
+							}
+							pltmp=pltmp->next;
+						}
+					}
+				}
+					
 			}
 		}
 	}
@@ -2919,6 +3046,7 @@ int main(void)
 						else if (pltmp->type == PLACER_NPC)
 						{	
 							cattmp = get_chara_template(&test_world,pltmp->c_name);
+							
 							if (cattmp)
 							{
 								catmp = new_chara_active(cattmp);
@@ -2929,7 +3057,10 @@ int main(void)
 							
 								ADD_CHARA_ACTIVE(catmp);
 							}
-							
+							else
+							{
+								printf("couldn't find chara \"%s\"\n", pltmp->c_name);
+							}
 						}
 
 						/* for exits, use c_name for dst room name */
@@ -3125,7 +3256,9 @@ int main(void)
 					/* apply drift effect (should be only be used for props )*/
 					chara_active_apply_drift(catmp);
 					
-					/* apply dpos to pos */
+					/* apply dpos to pos, while clipping dpos if another
+					 * chara or b_blocker or block tile in way.
+					 */
 					chara_active_apply_dpos_clip(catmp, catmp, tmap_main_select);
 					
 					/* tick action frame for sprite */

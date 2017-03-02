@@ -196,6 +196,16 @@ typedef struct cam
 	struct chara_active *target; /* if not null, override x,y and focus target as center. */
 } cam;
 
+typedef struct b_blocker
+{
+	int x; /* x,y at top left in world coords. */
+	int y;
+	int w;
+	int h;
+	
+	struct b_blocker *next;
+} b_blocker;
+
 typedef struct tilemap
 {
 	int x;  /* x,y in global coords */
@@ -208,6 +218,7 @@ typedef struct tilemap
 	
 	int tsize; /* w & h for tiles.  default 16px. */
 	
+	b_blocker *b_block;
 	int *tile_block; /* corresponds to tiles.  0=no_block, 1=block */
 	SDL_Surface **tiles;
 } tilemap;
@@ -318,6 +329,8 @@ typedef struct chara_template
 	int bbox_z; /* actual height, with bbox_w+h as a base. */
 	
 	int type;
+	
+	int pickup;
 	
 	struct chara_template *next;
 	
