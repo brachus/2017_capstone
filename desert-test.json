@@ -477,6 +477,48 @@
                  "width":54.3333666666667,
                  "x":5616.16665,
                  "y":1704.83335
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-bowl",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5640.86365,
+                 "y":1966.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-bowl",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5600.36365,
+                 "y":2033.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-bowl",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5669.36365,
+                 "y":2022.45455
                 }],
          "opacity":1,
          "type":"objectgroup",

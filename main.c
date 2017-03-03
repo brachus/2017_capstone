@@ -203,7 +203,7 @@ enum
 {
 	CH_TYPE_PICKUP,
 	CH_TYPE_INTERACT
-}
+};
 
 enum
 {
@@ -293,6 +293,16 @@ sprite *new_sprite(char *script)
 				if (!n->sprt_arr[atoi(buf[1])])
 					printf("error: \"%s\" failed to load.\n", buf[2]);
 			}
+		}
+		if (	!strcmp(buf[0], "img") &&
+				n->frames!=0 &&
+				nargs==3 &&
+				is_int[0]==0 &&  /* this, instead of loading another image, uses already loaded image, as an index to sprt_arr. */
+				is_int[1] &&
+				is_int[2]) /* load image for frame: img <int frame> <int img>;*/
+		{
+			if (atoi(buf[1]) < n->frames && atoi(buf[2]) < n->frames)
+				n->sprt_arr[atoi(buf[1])] = n->sprt_arr[atoi(buf[2])];
 		}
 		else if (!strcmp(buf[0], "drift") &&
 				n->frames!=0 &&
@@ -924,6 +934,10 @@ chara_active *new_chara_active(chara_template *a)
 	
 	n->md=0;
 	n->md_prev=0;
+	n->md_changed=0;
+	
+	for (i=0;i<32;i++)
+		n->items[i] = 0;
 	
 	n->max_hp = a->max_hp;
 	n->max_mp = a->max_mp;
@@ -977,6 +991,23 @@ chara_active *new_chara_active(chara_template *a)
 	return n;
 }
 
+int chara_active_move_to_inventory(chara_active *src, chara_active *dst)
+{
+	int i;
+	
+	for (i=0;i<32;i++)
+	{
+		if (!dst->items[i])
+		{
+			dst->items[i] = src;
+			src->active = 0;
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
 void chara_active_apply_drift(chara_active *a)
 {
 	a->dpos.x += a->drift.x;
@@ -1011,7 +1042,11 @@ void step_sprite_active(sprite_active *a)
 {
 	sprite * sprt = a->base;
 	
-	if (++a->cntr >= sprt->intrv)
+	/*printf("SPRITE: cur=%d frames=%d cntr=%d intrv=%d\n",a->cur,sprt->frames,a->cntr, sprt->intrv);*/
+	
+	a->cntr++;
+	
+	if (a->cntr >= sprt->intrv)
 	{
 		a->cntr=0;
 		
@@ -1355,7 +1390,7 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	}
 	
 	/* render text */
-	render_text(dst, fg, bg, font, msg, 42,8, TEXT_OUTLINE | TEXT_BOLD );
+	render_text(dst, fg, bg, font, msg, 42,10, TEXT_OUTLINE | TEXT_BOLD | TEXT_BACKING );
 	
 	
 }
@@ -2334,6 +2369,8 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 				}
 				else /* placer ? */
 				{
+					printf("placer: %s\n",tmp_str);
+					
 					tmpx = json_tree_get_int_from_obj(tmp2, "x");
 					tmpy = json_tree_get_int_from_obj(tmp2, "y");
 					tmpx += json_tree_get_int_from_obj(tmp2, "width")/2;
@@ -2627,7 +2664,7 @@ int main(void)
 	SDL_Surface *main_display, *tmpd, *s_layer;
 	SDL_Window  *win;
 	SDL_Rect 	pos;
-	sprite  *sprt_shad, *sprt_logo;
+	sprite  *sprt_logo;
 	render_sprite_head rstest;
 	tilemap *tmap_main_select;
 	chara_active *c_active = 0, *c_a_last = 0, *catmp;
@@ -2711,9 +2748,25 @@ int main(void)
 	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -10 0 20 20 10;attk_frame_target -3 0 0; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
 	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 10 0 20 20 10;attk_frame_target 3 0 0;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
 		
-	chara_template_add(&test_world, "name ch0;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 0;gfx_cnt 32;gfx  0 ch0_left_move;gfx  1 ch0_left_stand;gfx  2 ch0_right_move;gfx  3 ch0_right_stand;gfx  4 ch0_up_move;gfx  5 ch0_up_stand;gfx  6 ch0_down_move;gfx  7 ch0_down_stand;gfx  8 ch0_up_attk_basic;gfx  9 ch0_down_attk_basic;gfx  10 ch0_left_attk_basic;gfx  11 ch0_right_attk_basic;");
-	chara_template_add(&test_world, "name jar;max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;type 1;gfx_cnt 1;gfx  0 jar;");
+	sprite_add(&test_world,"frames 15 5;name food-bowl;  cxy 10 10;transp 0;loop 1;img 0 item/food-bowl.png;\
+		img 1 0;\
+		img 2 0;\
+		img 3 0;\
+		img 4 0;\
+		img 5 0;\
+		img 6 0;\
+		img 7 0;\
+		img 8 0;\
+		img 9 0;\
+		img 10 0;\
+		img 11 0;\
+		img 12 item/food-bowl-gl0.png;\
+		img 13 item/food-bowl-gl1.png;\
+		img 14 item/food-bowl-gl2.png;");
 		
+	chara_template_add(&test_world, "name ch0;						type 0;		max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;gfx_cnt 32;gfx  0 ch0_left_move;gfx  1 ch0_left_stand;gfx  2 ch0_right_move;gfx  3 ch0_right_stand;gfx  4 ch0_up_move;gfx  5 ch0_up_stand;gfx  6 ch0_down_move;gfx  7 ch0_down_stand;gfx  8 ch0_up_attk_basic;gfx  9 ch0_down_attk_basic;gfx  10 ch0_left_attk_basic;gfx  11 ch0_right_attk_basic;");
+	chara_template_add(&test_world, "name jar;						type 1;		max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;gfx_cnt 1;gfx  0 jar;");
+	chara_template_add(&test_world, "name pickup-health-food-bowl;	type 2;		pickup; max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;gfx_cnt 1;gfx  0 food-bowl;");	
 	
 	sprt_lhud = get_sprite(&test_world, "hud_health_l");
 	sprt_logo = get_sprite(&test_world, "logo");
@@ -2753,10 +2806,6 @@ int main(void)
 	
 	SDL_SetSurfaceBlendMode(main_display, SDL_BLENDMODE_BLEND);
 	
-	
-	/* create shadow sprite*/
-	sprite_add(&test_world,"frames 1 10;name item_shadow;  cxy 8 2;transp 1;frames 1;intrv 10;loop 0;img 0 shad.png;");
-	sprt_shad = get_sprite(&test_world, "item_shadow");
 	
 	game_mode = MD_CTLR_CHECK;
 	game_mode_first_loop = 1;
@@ -3049,6 +3098,7 @@ int main(void)
 							
 							if (cattmp)
 							{
+								printf("loaded \"%s\" successfully.\n", pltmp->c_name);
 								catmp = new_chara_active(cattmp);
 								catmp->md = pltmp->c_start_mode;
 								catmp->pos.x = pltmp->pos.x;
@@ -3058,9 +3108,7 @@ int main(void)
 								ADD_CHARA_ACTIVE(catmp);
 							}
 							else
-							{
 								printf("couldn't find chara \"%s\"\n", pltmp->c_name);
-							}
 						}
 
 						/* for exits, use c_name for dst room name */
@@ -3104,7 +3152,7 @@ int main(void)
 			{
 				switch (catmp->base->type)
 				{
-				case 0: /* CH0 */
+				case CHARA_CH0: /* CH0 */
 					j=catmp->md;
 					catmp->md_changed = 0;
 					
@@ -3174,6 +3222,43 @@ int main(void)
 							catmp->md=CH0_MD_STAND_R;
 					}
 					
+					/* look for pick-up items */
+					
+					
+					
+					{
+						chara_active *pickup_tmp = c_active;
+						int rtmp;
+						
+						while (pickup_tmp)
+						{
+							/*MUST be active */ 
+							if (pickup_tmp != catmp && pickup_tmp->base->pickup == 1 && pickup_tmp->active)
+							{
+								if (  check_bbox_intersect(
+										catmp->pos.x - (catmp->base->bbox_w/2),
+										catmp->pos.y + (catmp->base->bbox_h/2),
+										catmp->pos.x + (catmp->base->bbox_w/2),
+										catmp->pos.y - (catmp->base->bbox_h/2),
+										pickup_tmp->pos.x - (pickup_tmp->base->bbox_w/2),
+										pickup_tmp->pos.y + (pickup_tmp->base->bbox_h/2),
+										pickup_tmp->pos.x + (pickup_tmp->base->bbox_w/2),
+										pickup_tmp->pos.y - (pickup_tmp->base->bbox_h/2)  )  )
+								{
+									rtmp = chara_active_move_to_inventory(pickup_tmp, catmp);
+									
+									printf("chara_active_move_to_inventory: %d\n", rtmp );
+									
+									/* possibly add effects, and message about item picked up*/
+								}
+							}
+							
+							pickup_tmp=pickup_tmp->next;
+						}
+						
+					}
+					
+					/* change sprite based on mode */
 					catmp->u_sprt = 0;
 						
 					switch(catmp->md)
@@ -3198,7 +3283,7 @@ int main(void)
 					
 					break;
 					
-				case 1: /* jar */
+				case CHARA_JAR: /* jar */
 					
 					for (i=0;i<32;i++)
 						catmp->af_hit[i] = 0;
@@ -3234,8 +3319,21 @@ int main(void)
 					if (catmp->invisi_cntr>0)
 						catmp->invisi_cntr--;
 					
+					catmp->md_changed=0;/* important 	*/
+					
 					break;
+					
+				case CHARA_FOOD_PICKUP_BOWL:
+					catmp->u_sprt = catmp->gfx[0];
+					
+					catmp->md_changed=0;/* important 	*/
+					
+					break;
+					
 				}
+				
+				
+				
 				
 				
 				/* add sprite */

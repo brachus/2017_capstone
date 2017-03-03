@@ -1,6 +1,8 @@
 
 - implement, and create pick-up items (health, elemental prototype)
 
+- implement loading sprites/chara templates from external file all together.
+
 - implement room switching, start with castle and underground passage.
 
 - implement fire ball

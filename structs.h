@@ -351,6 +351,8 @@ typedef struct chara_active
 	int md_prev;
 	int md_changed;
 	
+	struct chara_active *items[32];
+	
 	/* this is stepped along a static var in chara_active. */
 	int id;
 	
