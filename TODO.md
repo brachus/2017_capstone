@@ -1,5 +1,5 @@
 
-- implement, and create pick-up items (health, elemental prototype)
+## COMPLETE ## - implement, and create pick-up items (health, elemental prototype)
 
 - implement loading sprites/chara templates from external file all together.
 

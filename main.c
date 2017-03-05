@@ -105,19 +105,6 @@
 	if (a>0) \
 		*((uint32_t*)pw_pixel) = SDL_MapRGBA(pw_fmt, r*mult[0]>>8,g*mult[1]>>8,b*mult[2]>>8,a); \
 	}
-
-/* coordinates are global; y0 > y1 */
-int check_bbox_intersect(
-	int ax0, int ay0, int ax1, int ay1,
-	int bx0, int by0, int bx1, int by1)
-{
-	if (
-		((ax0 < bx1 && ax0 > bx0) || (ax1 < bx1 && ax1 > bx0) || (ax0 < bx0 && ax1 > bx1)) &&
-		((ay0 < by0 && ay0 > by1) || (ay1 < by0 && ay1 > by1) || (ay0 > by0 && ay1 < by1))
-			)
-		return 1;
-	return 0;
-}
 	
 
 int flag_screen_mult = 1;
@@ -212,6 +199,88 @@ enum
 };
 
 #include "structs.h"
+
+/* coordinates are global; y0 > y1 */
+int check_bbox_intersect(
+	int ax0, int ay0, int ax1, int ay1,
+	int bx0, int by0, int bx1, int by1)
+{
+	if (
+		((ax0 < bx1 && ax0 > bx0) || (ax1 < bx1 && ax1 > bx0) || (ax0 < bx0 && ax1 > bx1) || (ax0 == bx0 && ax1 == bx1)) &&
+		((ay0 < by0 && ay0 > by1) || (ay1 < by0 && ay1 > by1) || (ay0 > by0 && ay1 < by1) || (ay0 == by0 && ay1 == by1))
+			)
+		return 1;
+	return 0;
+}
+
+int file_exists(char *fn)
+{
+	#ifdef LINUX
+		if (access(fn, F_OK) != -1)
+			return 1;
+		return 0;
+	#else
+		FILE *fp;
+		fp = fopen(fn, "r");
+		if (!fp)
+			return 0;
+		fclose(fp);
+		return 1;
+	#endif
+}
+
+int get_file_length(char *fn)
+{
+	FILE *fp;
+	int ln;
+	
+	fp = fopen(fn,"r");
+	
+	if (!fp)
+		return -1;
+	
+	/* file get length */
+	fseek(fp, 0L, SEEK_END);
+	ln = ftell(fp);
+	
+	fclose(fp);
+	
+	return ln;
+	
+}
+
+char *load_file_as_char_array(char *fn)
+{
+	FILE *fp=0;
+	char *dat=0, tmpc;
+	int ln, i;
+	
+	ln = get_file_length(fn);
+	
+	if (!ln || ln==-1)
+		return 0;
+	
+	fp = fopen(fn, "r");
+	
+	dat = (char*) malloc(ln + 1);
+	
+	rewind(fp);
+	i=0;
+	while(i<ln)
+	{
+		tmpc=fgetc(fp);
+		if (tmpc==EOF)
+		{
+			dat[i]='\0';
+			break;
+		}
+		else
+			dat[i++] = tmpc;
+	}
+	fclose(fp);
+	
+	return dat;
+}
 
 void tick_frame(int fps)
 {
@@ -1436,7 +1505,6 @@ void chara_active_apply_dpos_clip( chara_active *a, chara_active *all, tilemap *
 			
 		/* for now, only test four corners of bounding box */
 		
-		
 		{ 
 			bbtmp = tm->b_block;
 			
@@ -1462,6 +1530,32 @@ void chara_active_apply_dpos_clip( chara_active *a, chara_active *all, tilemap *
 						bbtmp->y - bbtmp->h)  )
 					goto doclip;
 				bbtmp = bbtmp->next;
+			}
+		}
+		
+		/* test against all other chara actives*/
+		{
+			chara_active *pickup_tmp = all;
+			int rtmp;
+			
+			while (pickup_tmp)
+			{
+				/*MUST be active */ 
+				if (pickup_tmp != a && !pickup_tmp->base->pickup && pickup_tmp->active)
+				{
+					if (  check_bbox_intersect(
+							a->pos.x + acc_step[0] - (a->base->bbox_w / 2),
+							a->pos.y + acc_step[1] + (a->base->bbox_h / 2),
+							a->pos.x + acc_step[0] + (a->base->bbox_w / 2),
+							a->pos.y + acc_step[1] - (a->base->bbox_h / 2),
+							pickup_tmp->pos.x - (pickup_tmp->base->bbox_w/2),
+							pickup_tmp->pos.y + (pickup_tmp->base->bbox_h/2),
+							pickup_tmp->pos.x + (pickup_tmp->base->bbox_w/2),
+							pickup_tmp->pos.y - (pickup_tmp->base->bbox_h/2)  )  )
+						goto doclip;
+				}
+				
+				pickup_tmp=pickup_tmp->next;
 			}
 		}
 		
@@ -1544,22 +1638,6 @@ void reset_controller(controller *a)
 	a->key_we = 0;
 	a->key_inv = 0;
 	a->set=0;
-}
-
-int file_exists(char *fn)
-{
-	#ifdef LINUX
-		if (access(fn, F_OK) != -1)
-			return 1;
-		return 0;
-	#else
-		FILE *fp;
-		fp = fopen(fn, "r");
-		if (!fp)
-			return 0;
-		fclose(fp);
-		return 1;
-	#endif
 }
 
 /* read controller settings from file */
@@ -1716,6 +1794,8 @@ world * new_world()
 	n->rooms = 0;
 	n->chara_temps = 0;
 	n->sprites = 0;
+	n->attk_frames=0;
+	n->dfnd_frames=0;
 	
 	return n;
 }
@@ -2144,6 +2224,11 @@ void placer_add(world *in_world, char* script)
 	new_placer(in_world, script, 0); /* this automatically handles adding new structure */
 }
 
+
+
+
+
+
 tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gathering placers. */
 {
 	FILE *fp=0;
@@ -2161,43 +2246,16 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	jsmntok_t *t=0;
 	placer *pltmp;
 	
-	fp = fopen(fn,"r");
+	/* load file as character array*/
+	dat = load_file_as_char_array(fn);
 	
-	if (!fp)
+	ln = get_file_length(fn);
+	
+	if (!dat || !ln || ln==-1)
 		goto ld_tilemap_ff_done;
-	
-	fseek(fp, 0L, SEEK_END);
-	ln = ftell(fp);
-	
-	if (!ln)
-		goto ld_tilemap_ff_done;
-	
-	
-	dat = (char*) malloc(ln + 1);
 
 	t = (jsmntok_t *) malloc(sizeof(jsmntok_t) * ln);
 	
-	
-	
-	rewind(fp);
-	
-	i=0;
-	while(i<ln)
-	{
-		tmpc=fgetc(fp);
-		if (tmpc==EOF)
-		{
-			dat[i]='\0';
-			break;
-		}
-		else
-			dat[i++] = tmpc;
-	}
-	/*fread(dat, ln, 1, fp);*/
-	
-	
-	fclose(fp);
-	fp=0;
 	
 	jsmn_init(&p);
 	r = jsmn_parse(&p, dat, ln, t, ln);
@@ -2641,6 +2699,102 @@ void action_frame_clear_chara(action_frame *af_list_head, chara_active *ca)
 	}
 }
 
+world * load_new_world_from_file(char *fn)
+{
+	FILE *fp=0;
+	char *dat=0, tmpc, tmp_str[32], *tmp_str1=0;
+	int ln, i,tmp_str_i, tmp_str1_i, md;
+	world *n;
+	
+	ln = get_file_length(fn);
+	
+	/* load text as array of chars */
+	dat = load_file_as_char_array(fn);
+	
+	if (!dat)
+		return 0;
+	
+	
+	tmp_str1 = (char*) malloc(ln+1);	
+	
+	tmp_str[0]='\0';
+	tmp_str_i = 0;
+	
+	tmp_str1[0]='\0';
+	tmp_str1_i=0;
+	
+	md=0;
+	
+	n = new_world();
+	
+	
+	for (i=0;i<ln;i++)
+	{
+		if (md==0)
+		{
+			if (dat[i] != ' ' &&
+				dat[i] != '\n' &&
+				dat[i] != '\t' &&
+				dat[i] != '{' &&
+				tmp_str_i < 31
+				)
+			{
+				tmp_str[tmp_str_i++] = dat[i];
+				tmp_str[tmp_str_i] = '\0';
+			}
+			else if (dat[i] == '{')
+			{
+				if (!strcmp("sprite", tmp_str) || !strcmp("s", tmp_str))
+					md=3;
+				
+				if (!strcmp("ctmp", tmp_str) || !strcmp("t", tmp_str))
+					md=2;
+				
+				if (!strcmp("room", tmp_str) || !strcmp("r", tmp_str))
+					md=1;
+									
+				tmp_str[0]='\0';
+				tmp_str_i = 0;
+				
+				tmp_str1[0]='\0';
+				tmp_str1_i=0;
+			}
+		}
+		else
+		{
+			if (dat[i] != '}')
+			{
+				tmp_str1[tmp_str1_i++] = dat[i];
+				tmp_str1[tmp_str1_i] = '\0';
+			}
+			else
+			{
+								
+				if (md==1)
+					room_add(n, tmp_str1);
+				else if (md==2)
+					chara_template_add(n, tmp_str1);
+				else if (md==3)
+					sprite_add(n, tmp_str1);
+				
+				md=0;
+			}
+			
+		}
+			
+	}
+	
+	if (dat)
+		free(dat);
+	
+	if (tmp_str1)
+		free(tmp_str1);
+	
+	printf("created world %p \n", n);
+	return n;
+	
+}
+
 int main(void)
 {
 	/* initialize things: */
@@ -2673,7 +2827,7 @@ int main(void)
 	float ch0_health=1.0;
 	ani *test_ani;
 	controller ctlr_main;
-	world test_world;
+	world *main_world;
 	player players[16];
 	world *select_world;
 	action_frame aframe_list;
@@ -2721,60 +2875,19 @@ int main(void)
 		}
 	}
 	
-	test_world.rooms = 0;
-	test_world.chara_temps=0;
-	test_world.sprites=0;
-	test_world.attk_frames=0;
-	test_world.dfnd_frames=0;
+	printf("loading main_world\n");
+	main_world = load_new_world_from_file("loadscript");
+	printf("ok\n");
 	
-	room_add(&test_world, "main desert-test.json desert-test-lightmap.json;");
 	
-	/* load sprites */
-	sprite_add(&test_world,"frames 1 10;name logo;  cxy 0 0;transp 0;intrv 10;loop 0;img 0 logo.png;");
-	sprite_add(&test_world,"frames 1 10;name hud_health_l;  cxy 0 0;transp 0;frames 1;intrv 10;loop 0;img 0 hud_health_l.png;");
-	sprite_add(&test_world,"frames 1 10;name jar;  cxy 8 14;transp 0;frames 1;intrv 10;loop 0;img 0 jar.png;");
-	
-	sprite_add(&test_world,"frames 2 10;name ch0_left_move;  cxy 16 28;transp 0;loop 1;img 0 l_1.png;img 1 l_0.png;drift all -1 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_left_stand;  cxy 16 28;transp 0;loop 0;img 0 l_0.png;");
-	sprite_add(&test_world,"frames 2 10;name ch0_right_move;  cxy 16 28;transp 0;loop 1;img 0 r_1.png;img 1 r_0.png;drift all 1 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_right_stand;  cxy 16 28;transp 0;loop 0;img 0 r_0.png;");
-	sprite_add(&test_world,"frames 2 10;name ch0_up_move;  cxy 16 28;transp 0;loop 1;img 0 u_1.png;img 1 u_0.png;drift all 0 1 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_up_stand;  cxy 16 28;transp 0;loop 0;img 0 u_0.png;");
-	sprite_add(&test_world,"frames 2 10;name ch0_down_move;  cxy 16 28;transp 0;loop 1;img 0 d_1.png;img 1 d_0.png;drift all 0 -1 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_down_stand;  cxy 16 28;transp 0;loop 0;img 0 d_0.png;");
-
-	sprite_add(&test_world,"frames 1 10;name ch0_up_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 u_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 10    20 20 10;attk_frame_target 0 3 0;   drift 0 0 2 0;drift 1 0 2 0;drift 2 0 2 0;drift 3 0 2 0;    drift 4 0 1 0;drift 5 0 1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_down_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 d_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 0 -10 20 20 10;attk_frame_target 0 -3 0; drift 0 0 -2 0;drift 1 0 -2 0;drift 2 0 -2 0;drift 3 0 -2 0;drift 4 0 -1 0;drift 5 0 -1 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_left_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 l_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox -10 0 20 20 10;attk_frame_target -3 0 0; drift 0 -2 0 0;drift 1 -2 0 0;drift 2 -2 0 0;drift 3 -2 0 0;drift 4 -1 0 0;drift 5 -1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-	sprite_add(&test_world,"frames 1 10;name ch0_right_attk_basic;  cxy 16 28;transp 0;loop 0;img 0 r_1.png;attk_frame_start 0;attk_frame_len 2; attk_frame_bbox 10 0 20 20 10;attk_frame_target 3 0 0;drift 0 2 0 0;drift 1 2 0 0;drift 2 2 0 0;drift 3 2 0 0;    drift 4 1 0 0;drift 5 1 0 0;drift 6 0 0 0;drift 7 0 0 0;drift 8 0 0 0;drift 9 0 0 0;");
-		
-	sprite_add(&test_world,"frames 15 5;name food-bowl;  cxy 10 10;transp 0;loop 1;img 0 item/food-bowl.png;\
-		img 1 0;\
-		img 2 0;\
-		img 3 0;\
-		img 4 0;\
-		img 5 0;\
-		img 6 0;\
-		img 7 0;\
-		img 8 0;\
-		img 9 0;\
-		img 10 0;\
-		img 11 0;\
-		img 12 item/food-bowl-gl0.png;\
-		img 13 item/food-bowl-gl1.png;\
-		img 14 item/food-bowl-gl2.png;");
-		
-	chara_template_add(&test_world, "name ch0;						type 0;		max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;gfx_cnt 32;gfx  0 ch0_left_move;gfx  1 ch0_left_stand;gfx  2 ch0_right_move;gfx  3 ch0_right_stand;gfx  4 ch0_up_move;gfx  5 ch0_up_stand;gfx  6 ch0_down_move;gfx  7 ch0_down_stand;gfx  8 ch0_up_attk_basic;gfx  9 ch0_down_attk_basic;gfx  10 ch0_left_attk_basic;gfx  11 ch0_right_attk_basic;");
-	chara_template_add(&test_world, "name jar;						type 1;		max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;gfx_cnt 1;gfx  0 jar;");
-	chara_template_add(&test_world, "name pickup-health-food-bowl;	type 2;		pickup; max_hp 40;max_mp 20;attack 10;defend 10;bbox 10 10 30;gfx_cnt 1;gfx  0 food-bowl;");	
-	
-	sprt_lhud = get_sprite(&test_world, "hud_health_l");
-	sprt_logo = get_sprite(&test_world, "logo");
+	sprt_lhud = get_sprite(main_world, "hud_health_l");
+	sprt_logo = get_sprite(main_world, "logo");
 	
 	/*placer_add(&test_world, "player 0 70 -70 1 main;");
 	placer_add(&test_world, "npc jar 70 -70 1 main;");*/
 	
 	
+	printf("sprt_lhud:%p\n",sprt_lhud);
 	
 	
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
@@ -3026,7 +3139,7 @@ int main(void)
 			{
 				/* setup death match mode START*/
 				
-				select_world = &test_world;
+				select_world = main_world;
 				
 				nplayers = 1;
 				
@@ -3076,7 +3189,7 @@ int main(void)
 
 						if (pltmp->type == PLACER_PLAYER && tmp_player_assgn < nplayers)
 						{	
-							catmp = new_chara_active(get_chara_template(&test_world,"ch0"));
+							catmp = new_chara_active(get_chara_template(main_world,"ch0"));
 							catmp->md = pltmp->c_start_mode;
 							catmp->pos.x = pltmp->pos.x;
 							catmp->pos.y = pltmp->pos.y;
@@ -3094,7 +3207,7 @@ int main(void)
 						}
 						else if (pltmp->type == PLACER_NPC)
 						{	
-							cattmp = get_chara_template(&test_world,pltmp->c_name);
+							cattmp = get_chara_template(main_world,pltmp->c_name);
 							
 							if (cattmp)
 							{
@@ -3133,7 +3246,6 @@ int main(void)
 			
 			break;
 		case MD_DEATHMATCH:
-			
 			if (game_mode_first_loop)
 			{
 				SET_FADE_IN();
@@ -3224,8 +3336,6 @@ int main(void)
 					
 					/* look for pick-up items */
 					
-					
-					
 					{
 						chara_active *pickup_tmp = c_active;
 						int rtmp;
@@ -3255,7 +3365,6 @@ int main(void)
 							
 							pickup_tmp=pickup_tmp->next;
 						}
-						
 					}
 					
 					/* change sprite based on mode */
@@ -3307,14 +3416,17 @@ int main(void)
 								catmp->md++; /* step mode to deactivate */
 							}
 						}
+						catmp->u_sprt = catmp->gfx[0];
 						break;
 					case 1:
 						if (catmp->invisi_cntr <= 0)
 							catmp->active = 0;
+						
+						catmp->u_sprt = catmp->gfx[1];
 						break;
 					}
 					
-					catmp->u_sprt = catmp->gfx[0];
+					
 					
 					if (catmp->invisi_cntr>0)
 						catmp->invisi_cntr--;
@@ -3326,7 +3438,14 @@ int main(void)
 				case CHARA_FOOD_PICKUP_BOWL:
 					catmp->u_sprt = catmp->gfx[0];
 					
-					catmp->md_changed=0;/* important 	*/
+					catmp->md_changed=0;
+					
+					break;
+				
+				case CHARA_FOOD_PICKUP_MEAT:
+					catmp->u_sprt = catmp->gfx[0];
+					
+					catmp->md_changed=0;
 					
 					break;
 					
@@ -3407,6 +3526,7 @@ int main(void)
 			case 0:tick_shad=1;break;
 			case 1:tick_shad=-1;break;
 			}
+			
 			
 			break;
 		}

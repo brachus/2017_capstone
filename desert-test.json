@@ -480,7 +480,7 @@
                 }, 
                 {
                  "height":29.0909,
-                 "name":"npc pickup-health-food-bowl",
+                 "name":"npc pickup-health-food-meat",
                  "properties":
                     {
 
@@ -519,6 +519,328 @@
                  "width":35.2727,
                  "x":5669.36365,
                  "y":2022.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5540.36365,
+                 "y":2011.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5550.36365,
+                 "y":2054.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5462.36365,
+                 "y":2234.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5471.36365,
+                 "y":2227.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5486.36365,
+                 "y":2218.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5513.36365,
+                 "y":2239.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5538.36365,
+                 "y":2215.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5515.36365,
+                 "y":2266.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5559.36365,
+                 "y":2251.45455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5576.86365,
+                 "y":2257.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5600.86365,
+                 "y":2241.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5627.86365,
+                 "y":2262.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5629.86365,
+                 "y":2289.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5673.86365,
+                 "y":2274.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5585.86365,
+                 "y":2250.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5652.86365,
+                 "y":2238.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5519.86365,
+                 "y":2308.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5543.86365,
+                 "y":2292.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5570.86365,
+                 "y":2313.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5572.86365,
+                 "y":2340.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5616.86365,
+                 "y":2325.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5528.86365,
+                 "y":2301.95455
+                }, 
+                {
+                 "height":29.0909,
+                 "name":"npc pickup-health-food-meat",
+                 "properties":
+                    {
+
+                    },
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":35.2727,
+                 "x":5595.86365,
+                 "y":2289.95455
                 }],
          "opacity":1,
          "type":"objectgroup",
