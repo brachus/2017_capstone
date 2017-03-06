@@ -1,7 +1,10 @@
 
 ## COMPLETE ## - implement, and create pick-up items (health, elemental prototype)
+## COMPLETE ## - implement loading sprites/chara templates from external file all together.
 
-- implement loading sprites/chara templates from external file all together.
+- add race/class/sex vars to character.
+
+
 
 - implement room switching, start with castle and underground passage.
 
@@ -17,9 +20,12 @@
 - allow boxes in tilemap editor be called "castle", which would have same effect as "wall",
 	but would help with drawing the map.
 
-- implement inventory, mockups first for designing the window.  should for now be able to "USE" or "COMBINE" items.  items
+- implement MENU
+  - implement inventory, mockups first for designing the window.  should for now be able to "USE" or "COMBINE" items.  items
 	should have descriptions.  possibly have item library?  some items may just sit there, as they might be weapons or weapon upgrades.
-	
+  - implement stats view, with pretty alignment status diagram.
+
+- implement someway to search around for files.  e.g. if file doesn't exist in x directory, check .., ../.., ../../items, etc.
 
 
 

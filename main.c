@@ -472,7 +472,6 @@ sprite *new_sprite(char *script)
 			n->attk_frame.pos.x=atoi(buf[1]);
 			n->attk_frame.pos.y=atoi(buf[2]);
 			n->attk_frame.pos.z=1;
-						
 			n->attk_frame.h=atoi(buf[3]);
 			n->attk_frame.w=atoi(buf[4]);
 			n->attk_frame.z=atoi(buf[5]);
@@ -1269,9 +1268,9 @@ void tilemap_box_modify(tilemap *in, int x0, int y0, int x1, int y1, int val)
 
 void apply_multrgb_to_surface(SDL_Surface *surf, int mult[3])
 {
-	PW_DECLARE;
-	
 	int i,j, rgba[4]={0,0,0,0};
+
+	PW_DECLARE;
 		
 	PW_INIT(surf);
 	
@@ -1424,10 +1423,10 @@ void render_hud_health_left(SDL_Surface *dst, sprite *sprt_src, float a, float b
 	#define L_HUD_HEALTH_TOPLEFT_Y 24
 	#define L_HUD_HEALTH_TOPLEFT_LN 75
 	
-	PW_DECLARE;
-	
 	SDL_Surface *src;
 	int tmpln, i, j;
+
+	PW_DECLARE;
 	
 	src = sprt_src->sprt_arr[0];
 	
@@ -1536,7 +1535,6 @@ void chara_active_apply_dpos_clip( chara_active *a, chara_active *all, tilemap *
 		/* test against all other chara actives*/
 		{
 			chara_active *pickup_tmp = all;
-			int rtmp;
 			
 			while (pickup_tmp)
 			{
@@ -2234,7 +2232,7 @@ tilemap * load_tilemap_from_json(char *fn, room *inroom) /* we need room for gat
 	FILE *fp=0;
 	int ln=0, tw, th, ntiles, tsize, r, i, j, k, tmpw, tmph,
 		ts_load_cur_tile, tmpx, tmpy;
-	char *dat=0, tmpc;
+	char *dat=0;
 	tilemap *tm = 0;
 	json_parse_node *test_tree = 0, *tmp=0, *tmp1=0, *tmp2=0;
 	SDL_Rect tmp_clip_rect;
@@ -2702,7 +2700,7 @@ void action_frame_clear_chara(action_frame *af_list_head, chara_active *ca)
 world * load_new_world_from_file(char *fn)
 {
 	FILE *fp=0;
-	char *dat=0, tmpc, tmp_str[32], *tmp_str1=0;
+	char *dat=0, tmp_str[32], *tmp_str1=0;
 	int ln, i,tmp_str_i, tmp_str1_i, md;
 	world *n;
 	
